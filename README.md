@@ -37,13 +37,13 @@ The `securevision-capture` CLI tool lets you test video sources before integrati
 ### MacBook Camera Test
 ```bash
 # Basic test (no preview)
-poetry run securevision-capture --source-type device --device 0 --backend AVFOUNDATION --fps 15
+poetry run securevision-capture --source-type device --device 1 --backend AVFOUNDATION --fps 15
 
 # With live preview window
-poetry run securevision-capture --source-type device --device 0 --backend AVFOUNDATION --fps 15 --preview
+poetry run securevision-capture --source-type device --device 1 --backend AVFOUNDATION --fps 15 --preview
 
 # With frame resize for faster processing
-poetry run securevision-capture --source-type device --device 0 --fps 15 --resize 640x480 --preview
+poetry run securevision-capture --source-type device --device 1 --fps 15 --resize 640x480 --preview
 ```
 
 ### RTSP Camera Test
