@@ -103,11 +103,99 @@ class FaceSettings(BaseModel):
     min_face_size: int = 40  # px
 
 
+class PlateDetectorSettings(BaseModel):
+    """YOLOv8 detector configuration."""
+
+    model_path: str = Field(
+        "./weights/yolov8n_plate.pt", description="Path to YOLOv8 plate detection model"
+    )
+    conf_threshold: float = Field(
+        0.25, ge=0.0, le=1.0, description="Detection confidence threshold"
+    )
+    iou_threshold: float = Field(0.45, ge=0.0, le=1.0, description="NMS IoU threshold")
+    max_det: int = Field(10, ge=1, description="Maximum detections per frame")
+    input_size: int = Field(640, description="Model input size (square)")
+
+
+class PlateOCRSettings(BaseModel):
+    """Tesseract OCR configuration with preprocessing pipeline."""
+
+    # Tesseract configuration
+    tesseract_lang: str = Field("eng", description="Tesseract language (eng, deu, fra, etc.)")
+    psm_mode: int = Field(7, ge=0, le=13, description="Page segmentation mode (7=line, 8=word)")
+    oem_mode: int = Field(3, ge=0, le=3, description="OCR Engine mode (3=default, 1=LSTM)")
+    char_whitelist: str = Field(
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789- ",
+        description="Allowed characters for OCR (includes space and hyphen)",
+    )
+
+    # Preprocessing pipeline (applied in order)
+    crop_margin_px: int = Field(8, ge=0, description="Padding around detected plate bbox")
+    enable_grayscale: bool = Field(True, description="Convert to grayscale (recommended)")
+    enable_bilateral: bool = Field(
+        False, description="Apply bilateral filter (good for noise, adds overhead)"
+    )
+    bilateral_d: int = Field(9, description="Bilateral filter diameter")
+    bilateral_sigma_color: int = Field(75, description="Bilateral sigma color")
+    bilateral_sigma_space: int = Field(75, description="Bilateral sigma space")
+    enable_adaptive_threshold: bool = Field(
+        False, description="Apply adaptive thresholding (good for uneven lighting)"
+    )
+    adaptive_block_size: int = Field(11, description="Adaptive threshold block size (must be odd)")
+    adaptive_c: int = Field(2, description="Adaptive threshold constant")
+    enable_clahe: bool = Field(
+        False, description="Apply CLAHE (research shows minimal benefit, adds overhead)"
+    )
+    clahe_clip_limit: float = Field(2.0, description="CLAHE clip limit")
+    clahe_tile_size: int = Field(8, description="CLAHE grid size")
+
+    # Post-processing (deprecated - use PlatePostProcessSettings instead)
+    to_uppercase: bool = Field(True, description="Convert text to uppercase")
+    strip_whitespace: bool = Field(True, description="Remove whitespace from text")
+    min_text_length: int = Field(3, ge=1, description="Minimum valid text length")
+    substitute_o_to_0: bool = Field(False, description="Replace letter O with digit 0")
+    substitute_i_to_1: bool = Field(False, description="Replace letter I with digit 1")
+
+
+class PlatePostProcessSettings(BaseModel):
+    """Post-processing and validation for recognized plate text."""
+
+    regex: str = Field(
+        "[A-Z0-9-]{4,10}",
+        description="Regex pattern for valid plate format (applied after cleaning)",
+    )
+    uppercase: bool = Field(True, description="Convert text to uppercase before regex")
+    min_length: int = Field(4, ge=1, description="Minimum plate text length")
+    max_length: int = Field(10, ge=1, description="Maximum plate text length")
+
+
+class PlateROISettings(BaseModel):
+    """Region of Interest (ROI) crop to speed up detection."""
+
+    enabled: bool = Field(False, description="Enable ROI cropping before detection")
+    x1: int = Field(0, ge=0, description="ROI top-left x coordinate (pixels)")
+    y1: int = Field(0, ge=0, description="ROI top-left y coordinate (pixels)")
+    x2: int = Field(0, ge=0, description="ROI bottom-right x coordinate (0=full width)")
+    y2: int = Field(0, ge=0, description="ROI bottom-right y coordinate (0=full height)")
+
+
 class PlatesSettings(BaseModel):
+    """License plate recognition configuration."""
+
     enabled: bool = True
+    detector: PlateDetectorSettings = Field(default_factory=PlateDetectorSettings)
+    ocr: PlateOCRSettings = Field(default_factory=PlateOCRSettings)
+    postprocess: PlatePostProcessSettings = Field(default_factory=PlatePostProcessSettings)
+    roi: PlateROISettings = Field(default_factory=PlateROISettings)
     whitelist_path: str = "./data/plates/whitelist.csv"
     blacklist_path: str = "./data/plates/blacklist.csv"
-    min_confidence: float = 0.55
+    min_confidence: float = Field(
+        0.55, ge=0.0, le=1.0, description="Overall event confidence threshold"
+    )
+    min_aspect_ratio: float = Field(1.5, description="Minimum plate aspect ratio (width/height)")
+    max_aspect_ratio: float = Field(6.0, description="Maximum plate aspect ratio")
+    min_width_px: int = Field(80, description="Minimum plate width in pixels")
+    min_height_px: int = Field(20, description="Minimum plate height in pixels")
 
 
 class EventsSettings(BaseModel):

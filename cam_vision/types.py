@@ -52,9 +52,14 @@ class FaceMatch:
 
 @dataclass(frozen=True)
 class PlateRead:
-    text: str
-    confidence: float
-    detection: Detection
+    """License plate recognition result."""
+
+    text_raw: str  # Raw OCR output before cleaning
+    text_clean: str  # Cleaned text (uppercase, regex, substitutions)
+    confidence: float  # OCR confidence proxy (0.0-100.0)
+    detection: Detection  # YOLO detection (bbox, score)
+    matched_list: Optional[Literal["whitelist", "blacklist"]] = None
+    preprocessing_used: str = ""  # e.g., "grayscale,bilateral" for debugging
 
 
 @dataclass(frozen=True)
