@@ -104,11 +104,11 @@ with st.sidebar:
 
         ui_refresh_fps = st.sidebar.slider(
             "UI Refresh FPS",
-            min_value=5,
-            max_value=60,
+            min_value=1,
+            max_value=10,
             value=st.session_state.ui_refresh_fps,
             key="ui_refresh_fps_slider",
-            help="Display refresh rate (how often to update the UI). Higher = smoother but more CPU",
+            help="Display refresh rate (2-5 FPS recommended). Lower values reduce flashing and CPU usage.",
         )
         st.session_state.ui_refresh_fps = ui_refresh_fps
 
@@ -277,21 +277,17 @@ else:
     with col_preview:
         st.subheader("Live Preview")
 
-        # Stats display
-        stats = manager.get_stats()
+        # Create placeholders for stats to prevent flashing
         col_fps, col_frames, col_status = st.columns(3)
 
         with col_fps:
-            st.metric("Actual FPS", f"{stats['fps']:.1f}")
+            fps_placeholder = st.empty()
 
         with col_frames:
-            st.metric("Frame Count", stats["frame_count"])
+            frames_placeholder = st.empty()
 
         with col_status:
-            # Feature status indicators
-            face_status = "🟢" if manager.enable_faces else "🔴"
-            plate_status = "🟢" if manager.enable_plates else "🔴"
-            st.metric("Features", f"{face_status} Faces | {plate_status} Plates")
+            status_placeholder = st.empty()
 
         # Video preview placeholder
         preview_placeholder = st.empty()
@@ -300,6 +296,16 @@ else:
         if st.session_state.connected:
             # Get latest frame
             frame_result = manager.get_latest_frame()
+
+            # Update stats display
+            stats = manager.get_stats()
+            fps_placeholder.metric("Actual FPS", f"{stats['fps']:.1f}")
+            frames_placeholder.metric("Frame Count", stats["frame_count"])
+
+            # Feature status indicators
+            face_status = "🟢" if manager.enable_faces else "🔴"
+            plate_status = "🟢" if manager.enable_plates else "🔴"
+            status_placeholder.metric("Features", f"{face_status} Faces | {plate_status} Plates")
 
             if frame_result:
                 # Update session state
@@ -331,8 +337,18 @@ else:
             time.sleep(refresh_delay)
             st.rerun()
         else:
+            # Show initial stats when disconnected
+            stats = manager.get_stats()
+            fps_placeholder.metric("Actual FPS", f"{stats['fps']:.1f}")
+            frames_placeholder.metric("Frame Count", stats["frame_count"])
+
+            face_status = "🟢" if manager.enable_faces else "🔴"
+            plate_status = "🟢" if manager.enable_plates else "🔴"
+            status_placeholder.metric("Features", f"{face_status} Faces | {plate_status} Plates")
+
             preview_placeholder.info("Click 'Connect' to start preview")
             stats_info_placeholder.info("No detections yet")
+
 
 # Results panels (below preview)
 st.divider()

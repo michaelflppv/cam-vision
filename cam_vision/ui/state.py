@@ -104,7 +104,9 @@ def init_session_state() -> None:
         st.session_state.fps_target = 15
 
     if "ui_refresh_fps" not in st.session_state:
-        st.session_state.ui_refresh_fps = 30  # Higher UI refresh rate for smooth display
+        st.session_state.ui_refresh_fps = (
+            5  # UI refresh rate (2-5 FPS recommended for smooth, non-glitchy display)
+        )
 
     if "frame_resize" not in st.session_state:
         st.session_state.frame_resize = None
