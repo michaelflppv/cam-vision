@@ -138,3 +138,179 @@ def test_nested_env_vars(monkeypatch):
     assert settings.video.source.type == "rtsp"
     assert settings.video.source.url == "rtsp://cam.local/stream"
     assert settings.face.similarity_threshold == 0.5
+
+
+def test_plates_settings_defaults():
+    """Test PlatesSettings has sensible defaults."""
+    from cam_vision.config import PlatesSettings
+
+    settings = PlatesSettings()
+    assert settings.enabled is True
+
+    # Detector defaults
+    assert settings.detector.model_path == "./weights/yolov8n_plate.pt"
+    assert settings.detector.conf_threshold == 0.25
+    assert settings.detector.iou_threshold == 0.45
+    assert settings.detector.max_det == 10
+    assert settings.detector.input_size == 640
+
+    # OCR defaults
+    assert settings.ocr.tesseract_lang == "eng"
+    assert settings.ocr.psm_mode == 7
+    assert settings.ocr.oem_mode == 3
+    assert settings.ocr.char_whitelist == "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789- "
+    assert settings.ocr.enable_grayscale is True
+    assert settings.ocr.enable_bilateral is False
+    assert settings.ocr.enable_clahe is False
+
+    # Postprocess defaults
+    assert settings.postprocess.regex == "[A-Z0-9-]{4,10}"
+    assert settings.postprocess.uppercase is True
+    assert settings.postprocess.min_length == 4
+    assert settings.postprocess.max_length == 10
+
+    # ROI defaults
+    assert settings.roi.enabled is False
+    assert settings.roi.x1 == 0
+    assert settings.roi.y1 == 0
+    assert settings.roi.x2 == 0
+    assert settings.roi.y2 == 0
+
+    # List paths
+    assert settings.whitelist_path == "./data/plates/whitelist.csv"
+    assert settings.blacklist_path == "./data/plates/blacklist.csv"
+
+
+def test_plates_settings_env_override(monkeypatch):
+    """Test PlatesSettings can be overridden via environment variables."""
+    monkeypatch.setenv("SECUREVISION__PLATES__ENABLED", "false")
+    monkeypatch.setenv("SECUREVISION__PLATES__DETECTOR__MODEL_PATH", "/custom/model.pt")
+    monkeypatch.setenv("SECUREVISION__PLATES__DETECTOR__CONF_THRESHOLD", "0.35")
+    monkeypatch.setenv("SECUREVISION__PLATES__OCR__TESSERACT_LANG", "deu")
+    monkeypatch.setenv("SECUREVISION__PLATES__OCR__PSM_MODE", "8")
+    monkeypatch.setenv("SECUREVISION__PLATES__OCR__ENABLE_BILATERAL", "true")
+    monkeypatch.setenv("SECUREVISION__PLATES__POSTPROCESS__REGEX", "[A-Z]{2}[0-9]{4}")
+    monkeypatch.setenv("SECUREVISION__PLATES__ROI__ENABLED", "true")
+    monkeypatch.setenv("SECUREVISION__PLATES__ROI__X1", "100")
+    monkeypatch.setenv("SECUREVISION__PLATES__ROI__Y1", "50")
+    monkeypatch.setenv("SECUREVISION__PLATES__WHITELIST_PATH", "/custom/whitelist.csv")
+
+    settings = load_settings()
+    assert settings.plates.enabled is False
+    assert settings.plates.detector.model_path == "/custom/model.pt"
+    assert settings.plates.detector.conf_threshold == 0.35
+    assert settings.plates.ocr.tesseract_lang == "deu"
+    assert settings.plates.ocr.psm_mode == 8
+    assert settings.plates.ocr.enable_bilateral is True
+    assert settings.plates.postprocess.regex == "[A-Z]{2}[0-9]{4}"
+    assert settings.plates.roi.enabled is True
+    assert settings.plates.roi.x1 == 100
+    assert settings.plates.roi.y1 == 50
+    assert settings.plates.whitelist_path == "/custom/whitelist.csv"
+
+
+def test_plates_detector_settings_validation():
+    """Test PlateDetectorSettings field validation."""
+    from cam_vision.config import PlateDetectorSettings
+
+    # Valid settings
+    settings = PlateDetectorSettings(
+        model_path="./weights/yolov8s.pt",
+        conf_threshold=0.5,
+        iou_threshold=0.7,
+        max_det=5,
+    )
+    assert settings.conf_threshold == 0.5
+    assert settings.iou_threshold == 0.7
+    assert settings.max_det == 5
+
+    # Test threshold bounds
+    with pytest.raises(Exception):
+        PlateDetectorSettings(conf_threshold=1.5)  # > 1.0
+
+    with pytest.raises(Exception):
+        PlateDetectorSettings(conf_threshold=-0.1)  # < 0.0
+
+
+def test_plates_ocr_settings_validation():
+    """Test PlateOCRSettings field validation."""
+    from cam_vision.config import PlateOCRSettings
+
+    # Valid custom settings
+    settings = PlateOCRSettings(
+        tesseract_lang="fra",
+        psm_mode=8,
+        oem_mode=1,
+        char_whitelist="ABC123",
+        enable_bilateral=True,
+        enable_clahe=True,
+    )
+    assert settings.tesseract_lang == "fra"
+    assert settings.psm_mode == 8
+    assert settings.oem_mode == 1
+    assert settings.char_whitelist == "ABC123"
+    assert settings.enable_bilateral is True
+    assert settings.enable_clahe is True
+
+    # Test PSM bounds
+    with pytest.raises(Exception):
+        PlateOCRSettings(psm_mode=14)  # > 13
+
+    with pytest.raises(Exception):
+        PlateOCRSettings(psm_mode=-1)  # < 0
+
+
+def test_plates_postprocess_settings():
+    """Test PlatePostProcessSettings customization."""
+    from cam_vision.config import PlatePostProcessSettings
+
+    settings = PlatePostProcessSettings(
+        regex="[A-Z]{3}[0-9]{4}",
+        uppercase=True,
+        min_length=7,
+        max_length=7,
+    )
+    assert settings.regex == "[A-Z]{3}[0-9]{4}"
+    assert settings.min_length == 7
+    assert settings.max_length == 7
+
+
+def test_plates_roi_settings():
+    """Test PlateROISettings for region-of-interest crop."""
+    from cam_vision.config import PlateROISettings
+
+    # Disabled by default
+    settings = PlateROISettings()
+    assert settings.enabled is False
+
+    # Custom ROI
+    settings = PlateROISettings(
+        enabled=True,
+        x1=100,
+        y1=200,
+        x2=800,
+        y2=600,
+    )
+    assert settings.enabled is True
+    assert settings.x1 == 100
+    assert settings.y1 == 200
+    assert settings.x2 == 800
+    assert settings.y2 == 600
+
+
+def test_plates_settings_complete_override(monkeypatch):
+    """Test complete PlatesSettings configuration via environment."""
+    monkeypatch.setenv("SECUREVISION__PLATES__DETECTOR__MODEL_PATH", "weights/custom.pt")
+    monkeypatch.setenv("SECUREVISION__PLATES__OCR__TESSERACT_LANG", "spa")
+    monkeypatch.setenv(
+        "SECUREVISION__PLATES__OCR__CHAR_WHITELIST", "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    )
+    monkeypatch.setenv("SECUREVISION__PLATES__POSTPROCESS__UPPERCASE", "false")
+    monkeypatch.setenv("SECUREVISION__PLATES__MIN_CONFIDENCE", "0.7")
+
+    settings = load_settings()
+    assert settings.plates.detector.model_path == "weights/custom.pt"
+    assert settings.plates.ocr.tesseract_lang == "spa"
+    assert settings.plates.ocr.char_whitelist == "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789"
+    assert settings.plates.postprocess.uppercase is False
+    assert settings.plates.min_confidence == 0.7
