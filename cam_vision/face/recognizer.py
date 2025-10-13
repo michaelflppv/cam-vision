@@ -3,13 +3,13 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from typing import Iterable, List
 
 import cv2
 import numpy as np
 
 from ..pipeline.base import Processor
-from ..types import BBox, Detection, Event, FaceMatch, Frame
+from ..types import BBox, Detection, Event, FaceMatch, FaceObservation, Frame
 from .gallery import FaceGallery
 from .loader import FaceModels
 
@@ -36,7 +36,7 @@ class FaceRecognizer(Processor):
         gallery: FaceGallery,
         similarity_threshold: float = 0.35,
         min_face_size: int = 40,
-        detect_blur: bool = True,
+        detect_blur: bool = False,
         blur_threshold: float = 100.0,
         det_size: tuple[int, int] = (640, 640),
     ):
@@ -68,6 +68,7 @@ class FaceRecognizer(Processor):
             "rejected_blur": 0,
             "rejected_threshold": 0,
         }
+        self._latest_observations: List[FaceObservation] = []
 
     def open(self) -> None:
         """Load models and gallery."""
@@ -103,13 +104,16 @@ class FaceRecognizer(Processor):
             faces = self.models.get(frame.image)
         except Exception as e:
             logger.error(f"Face detection failed: {e}")
+            self._latest_observations = []
             return
 
         if len(faces) == 0:
             logger.debug(f"No faces detected in frame {frame.ts_ms}")
+            self._latest_observations = []
             return
 
         self._stats["total_detections"] += len(faces)
+        observations: List[FaceObservation] = []
 
         # Process each detected face
         for face in faces:
@@ -145,14 +149,6 @@ class FaceRecognizer(Processor):
             # Match against gallery
             match = self.gallery.match(embedding, self.similarity_threshold)
 
-            if match is None:
-                self._stats["rejected_threshold"] += 1
-                continue
-
-            # Unpack match
-            person_id, similarity = match
-            self._stats["matched"] += 1
-
             # Create Detection
             detection = Detection(
                 kind="face",
@@ -160,11 +156,34 @@ class FaceRecognizer(Processor):
                 score=float(face.det_score),  # Detection confidence
             )
 
+            if match is None:
+                self._stats["rejected_threshold"] += 1
+                observations.append(
+                    FaceObservation(
+                        detection=detection,
+                        matched=False,
+                    )
+                )
+                continue
+
+            # Unpack match
+            person_id, similarity = match
+            self._stats["matched"] += 1
+
             # Create FaceMatch
             face_match = FaceMatch(
                 person_id=person_id,
                 similarity=similarity,
                 detection=detection,
+            )
+
+            observations.append(
+                FaceObservation(
+                    detection=detection,
+                    person_id=person_id,
+                    similarity=similarity,
+                    matched=True,
+                )
             )
 
             # Emit Event
@@ -181,6 +200,8 @@ class FaceRecognizer(Processor):
             )
 
             yield event
+
+        self._latest_observations = observations
 
     def close(self) -> None:
         """Clean up resources and log statistics."""
@@ -219,6 +240,10 @@ class FaceRecognizer(Processor):
         variance = laplacian.var()
 
         return variance < self.blur_threshold
+
+    def get_latest_observations(self) -> List[FaceObservation]:
+        """Return face detections (matched and unknown) from the latest processed frame."""
+        return list(self._latest_observations)
 
     def _format_stats(self) -> str:
         """Format statistics as human-readable string."""

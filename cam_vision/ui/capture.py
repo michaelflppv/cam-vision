@@ -17,11 +17,12 @@ from cam_vision.config import load_settings
 from cam_vision.face.gallery import FaceGallery
 from cam_vision.face.recognizer import FaceRecognizer
 from cam_vision.io.capture import OpenCVCapture
+from cam_vision.pipeline.confirm import ConfirmationProcessor
 from cam_vision.plates.detector import YOLOPlateDetector
 from cam_vision.plates.lists import PlateListLoader
 from cam_vision.plates.ocr import TesseractOCR
 from cam_vision.plates.pipeline import PlateRecognizer
-from cam_vision.types import FaceMatch, Frame, PlateRead
+from cam_vision.types import Detection, FaceMatch, FaceObservation, Frame, PlateRead
 
 logger = logging.getLogger(__name__)
 
@@ -32,6 +33,7 @@ class FrameResult:
 
     frame: Frame
     face_matches: List[FaceMatch]
+    face_observations: List[FaceObservation]
     plate_reads: List[PlateRead]
     preview_image: np.ndarray
 
@@ -39,13 +41,19 @@ class FrameResult:
 class CaptureManager:
     """Thread-safe capture manager for UI."""
 
-    def __init__(self, enable_faces: bool = True, enable_plates: bool = True):
+    def __init__(
+        self,
+        enable_faces: bool = True,
+        enable_plates: bool = True,
+        enable_tracking: bool = True,
+    ):
         """
         Initialize capture manager.
 
         Args:
             enable_faces: Enable face recognition (requires gallery)
             enable_plates: Enable plate detection + OCR (requires YOLO model)
+            enable_tracking: Enable multi-frame tracking and confirmation (reduces false positives)
         """
         self.thread: Optional[threading.Thread] = None
         self.frame_queue: queue.Queue = queue.Queue(maxsize=10)
@@ -55,13 +63,20 @@ class CaptureManager:
         # Feature flags
         self.enable_faces = enable_faces
         self.enable_plates = enable_plates
+        self.enable_tracking = enable_tracking
 
         # Processors
         self.face_recognizer: Optional[FaceRecognizer] = None
         self.plate_recognizer: Optional[PlateRecognizer] = None
 
+        # Initialization status tracking
+        self.face_init_error: Optional[str] = None
+        self.plate_init_error: Optional[str] = None
+        self.gallery_person_count: int = 0
+
         self._stats = {"fps": 0.0, "frame_count": 0}
         self._running = False
+        self._tracking_params = {}  # Will be populated in start()
 
         # Load config for default settings
         try:
@@ -70,13 +85,48 @@ class CaptureManager:
             logger.warning(f"Failed to load settings: {e}. Using defaults.")
             self.settings = None
 
-    def start(self, source_config, fps_target=15, frame_resize=None):
-        """Start capture with given config."""
+    def start(
+        self,
+        source_config,
+        fps_target=15,
+        frame_resize=None,
+        face_similarity_threshold=None,
+        tracking_enabled=None,
+        frames_required=None,
+        iou_threshold=None,
+        max_age_frames=None,
+        ocr_agreement_threshold=None,
+    ):
+        """Start capture with given config.
+
+        Args:
+            source_config: Video source configuration
+            fps_target: Target FPS for capture
+            frame_resize: Optional frame resize tuple (width, height)
+            face_similarity_threshold: Optional face similarity threshold override (0.0-1.0)
+            tracking_enabled: Optional tracking enabled override (default from config or self.enable_tracking)
+            frames_required: Optional frames required override (default from config)
+            iou_threshold: Optional IoU threshold override (default from config)
+            max_age_frames: Optional max age override (default from config)
+            ocr_agreement_threshold: Optional OCR agreement threshold override (default from config)
+        """
         if self._running:
             logger.warning("Capture already running")
             return
 
         self.stop_event.clear()
+
+        # Override tracking settings if provided
+        if tracking_enabled is not None:
+            self.enable_tracking = tracking_enabled
+
+        # Store tracking parameters for processor initialization
+        self._tracking_params = {
+            "frames_required": frames_required,
+            "iou_threshold": iou_threshold,
+            "max_age_frames": max_age_frames,
+            "ocr_agreement_threshold": ocr_agreement_threshold,
+        }
 
         # Create capture
         self.capture = OpenCVCapture(
@@ -89,20 +139,26 @@ class CaptureManager:
         # Initialize face recognition if enabled
         if self.enable_faces:
             try:
-                self._init_face_recognizer()
+                self._init_face_recognizer(similarity_threshold=face_similarity_threshold)
+                self.face_init_error = None  # Success
             except Exception as e:
-                logger.warning(f"Failed to initialize face recognizer: {e}. Faces disabled.")
+                error_msg = str(e)
+                logger.warning(f"Failed to initialize face recognizer: {error_msg}")
                 self.enable_faces = False
                 self.face_recognizer = None
+                self.face_init_error = error_msg
 
         # Initialize plate recognition if enabled
         if self.enable_plates:
             try:
                 self._init_plate_recognizer()
+                self.plate_init_error = None  # Success
             except Exception as e:
-                logger.warning(f"Failed to initialize plate recognizer: {e}. Plates disabled.")
+                error_msg = str(e)
+                logger.warning(f"Failed to initialize plate recognizer: {error_msg}")
                 self.enable_plates = False
                 self.plate_recognizer = None
+                self.plate_init_error = error_msg
 
         # Start background thread
         self.thread = threading.Thread(target=self._capture_loop, daemon=True)
@@ -114,8 +170,12 @@ class CaptureManager:
             f"plates={'on' if self.enable_plates else 'off'})"
         )
 
-    def _init_face_recognizer(self) -> None:
-        """Initialize face recognizer with gallery."""
+    def _init_face_recognizer(self, similarity_threshold=None) -> None:
+        """Initialize face recognizer with gallery.
+
+        Args:
+            similarity_threshold: Optional threshold override (0.0-1.0). If None, uses config default.
+        """
         if self.settings is None or not self.settings.face.enabled:
             raise RuntimeError("Face recognition not enabled in config")
 
@@ -132,15 +192,62 @@ class CaptureManager:
             )
 
         gallery.load()
+        self.gallery_person_count = gallery.size()
 
-        # Create recognizer
-        self.face_recognizer = FaceRecognizer.from_config(self.settings.face, gallery)
+        # Use provided threshold or fall back to config
+        threshold_to_use = (
+            similarity_threshold
+            if similarity_threshold is not None
+            else self.settings.face.similarity_threshold
+        )
+
+        # Create recognizer with custom threshold
+        base_recognizer = FaceRecognizer(
+            gallery=gallery,
+            similarity_threshold=threshold_to_use,
+            min_face_size=self.settings.face.min_face_size,
+        )
+
+        # Wrap with ConfirmationProcessor if tracking enabled
+        if self.enable_tracking:
+            # Get tracking parameters (from overrides or config)
+            frames_req = self._get_tracking_param("frames_required", 3)
+            iou_thresh = self._get_tracking_param("iou_threshold", 0.5)
+            max_age = self._get_tracking_param("max_age_frames", 30)
+
+            self.face_recognizer = ConfirmationProcessor(
+                wrapped_processor=base_recognizer,
+                detection_kind="face",
+                frames_required=frames_req,
+                iou_threshold=iou_thresh,
+                max_age=max_age,
+            )
+            logger.info(
+                f"Face recognizer initialized with tracking: {self.gallery_person_count} persons, "
+                f"threshold={threshold_to_use}, "
+                f"frames_required={frames_req}, iou_threshold={iou_thresh}"
+            )
+        else:
+            self.face_recognizer = base_recognizer
+            logger.info(
+                f"Face recognizer initialized (no tracking): {self.gallery_person_count} persons, "
+                f"threshold={threshold_to_use}"
+            )
+
         self.face_recognizer.open()
 
-        logger.info(
-            f"Face recognizer initialized: {gallery.size()} persons, "
-            f"threshold={self.settings.face.similarity_threshold}"
-        )
+    def _get_tracking_param(self, param_name: str, default_value):
+        """Get tracking parameter from override or config."""
+        # Check if override was provided
+        override_value = self._tracking_params.get(param_name)
+        if override_value is not None:
+            return override_value
+
+        # Fall back to config
+        if self.settings and hasattr(self.settings, "tracking"):
+            return getattr(self.settings.tracking, param_name, default_value)
+
+        return default_value
 
     def _init_plate_recognizer(self) -> None:
         """Initialize plate recognizer with YOLO + OCR."""
@@ -165,7 +272,7 @@ class CaptureManager:
         )
 
         # Create OCR
-        ocr = TesseractOCR.from_config(self.settings.plates.ocr)
+        ocr = TesseractOCR(self.settings.plates.ocr)
 
         # Load plate lists
         lists = PlateListLoader(
@@ -174,15 +281,37 @@ class CaptureManager:
         )
 
         # Create recognizer
-        self.plate_recognizer = PlateRecognizer.from_config(
-            self.settings.plates, detector, ocr, lists
-        )
-        self.plate_recognizer.open()
+        base_recognizer = PlateRecognizer.from_config(self.settings.plates, detector, ocr, lists)
 
-        logger.info(
-            f"Plate recognizer initialized: model={model_path.name}, "
-            f"lists={lists.size()} plates, threshold={self.settings.plates.min_confidence}"
-        )
+        # Wrap with ConfirmationProcessor if tracking enabled
+        if self.enable_tracking:
+            # Get tracking parameters (from overrides or config)
+            frames_req = self._get_tracking_param("frames_required", 3)
+            iou_thresh = self._get_tracking_param("iou_threshold", 0.5)
+            max_age = self._get_tracking_param("max_age_frames", 30)
+            ocr_agreement = self._get_tracking_param("ocr_agreement_threshold", 0.6)
+
+            self.plate_recognizer = ConfirmationProcessor(
+                wrapped_processor=base_recognizer,
+                detection_kind="plate",
+                frames_required=frames_req,
+                iou_threshold=iou_thresh,
+                max_age=max_age,
+                ocr_agreement_threshold=ocr_agreement,
+            )
+            logger.info(
+                f"Plate recognizer initialized with tracking: model={model_path.name}, "
+                f"lists={lists.size()} plates, threshold={self.settings.plates.min_confidence}, "
+                f"frames_required={frames_req}, ocr_agreement={ocr_agreement}"
+            )
+        else:
+            self.plate_recognizer = base_recognizer
+            logger.info(
+                f"Plate recognizer initialized (no tracking): model={model_path.name}, "
+                f"lists={lists.size()} plates, threshold={self.settings.plates.min_confidence}"
+            )
+
+        self.plate_recognizer.open()
 
     def stop(self):
         """Stop capture thread gracefully."""
@@ -239,6 +368,78 @@ class CaptureManager:
         """Check if capture is running."""
         return self._running
 
+    def get_init_status(self) -> dict:
+        """Get initialization status for features."""
+        return {
+            "faces_enabled": self.enable_faces,
+            "plates_enabled": self.enable_plates,
+            "face_error": self.face_init_error,
+            "plate_error": self.plate_init_error,
+            "gallery_persons": self.gallery_person_count,
+        }
+
+    def _collect_face_observations(self, face_matches: List[FaceMatch]) -> List[FaceObservation]:
+        """Retrieve face observations from the active recognizer (wrapper-safe)."""
+        processor = self.face_recognizer
+        if processor is None:
+            return []
+
+        observations: List[FaceObservation] = []
+
+        candidate_processors = [processor]
+        wrapped = getattr(processor, "wrapped_processor", None)
+        if wrapped is not None:
+            candidate_processors.append(wrapped)
+
+        for candidate in candidate_processors:
+            if hasattr(candidate, "get_latest_observations"):
+                try:
+                    observations = candidate.get_latest_observations()  # type: ignore[attr-defined]
+                except Exception as exc:
+                    logger.error(f"Failed to fetch face observations: {exc}")
+                    observations = []
+                break
+
+        if not observations:
+            return []
+
+        # Enrich observations with confirmed track IDs when available
+        track_lookup: dict[tuple[int, int, int, int], int] = {}
+        for match in face_matches:
+            if match.detection.track_id is None:
+                continue
+            bbox = match.detection.bbox
+            track_lookup[(bbox.x1, bbox.y1, bbox.x2, bbox.y2)] = match.detection.track_id
+
+        if not track_lookup:
+            return list(observations)
+
+        enriched: List[FaceObservation] = []
+        for observation in observations:
+            bbox = observation.detection.bbox
+            track_id = track_lookup.get((bbox.x1, bbox.y1, bbox.x2, bbox.y2))
+            if track_id is None or observation.detection.track_id == track_id:
+                enriched.append(observation)
+                continue
+
+            enriched_detection = Detection(
+                kind=observation.detection.kind,
+                bbox=observation.detection.bbox,
+                score=observation.detection.score,
+                track_id=track_id,
+            )
+
+            enriched.append(
+                FaceObservation(
+                    detection=enriched_detection,
+                    person_id=observation.person_id,
+                    similarity=observation.similarity,
+                    matched=observation.matched,
+                )
+            )
+
+        return enriched
+
     def _capture_loop(self):
         """Background capture loop with face and plate recognition."""
         try:
@@ -255,17 +456,22 @@ class CaptureManager:
                 self._stats["frame_count"] += 1
                 self._stats["fps"] = self.capture.get_fps()
 
-                # Process face matches
-                face_matches = []
+                # Process face matches and collect observations
+                face_matches: List[FaceMatch] = []
                 if self.enable_faces and self.face_recognizer:
                     try:
                         for event in self.face_recognizer.process_frame(frame):
                             face_matches.append(event.payload)
                     except Exception as e:
                         logger.error(f"Face recognition failed: {e}")
+                face_observations: List[FaceObservation] = (
+                    self._collect_face_observations(face_matches)
+                    if self.enable_faces and self.face_recognizer
+                    else []
+                )
 
                 # Process plate reads
-                plate_reads = []
+                plate_reads: List[PlateRead] = []
                 if self.enable_plates and self.plate_recognizer:
                     try:
                         for event in self.plate_recognizer.process_frame(frame):
@@ -276,20 +482,21 @@ class CaptureManager:
                 # Create preview image with annotations
                 preview_img = frame.image.copy()
 
-                # Draw face match boxes (green for matches)
-                for match in face_matches:
-                    bbox = match.detection.bbox
-                    cv2.rectangle(
-                        preview_img, (bbox.x1, bbox.y1), (bbox.x2, bbox.y2), (0, 255, 0), 2
-                    )
-                    # Draw person name
+                # Draw face detections (green for matches, amber for unknown)
+                for observation in face_observations:
+                    bbox = observation.detection.bbox
+                    color = (0, 255, 0) if observation.matched else (0, 165, 255)
+                    cv2.rectangle(preview_img, (bbox.x1, bbox.y1), (bbox.x2, bbox.y2), color, 2)
+                    label = observation.label
+                    if observation.detection.track_id is not None:
+                        label += f" T{observation.detection.track_id}"
                     cv2.putText(
                         preview_img,
-                        f"{match.person_id} ({match.similarity:.2f})",
-                        (bbox.x1, bbox.y1 - 5),
+                        label,
+                        (bbox.x1, max(0, bbox.y1 - 5)),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.5,
-                        (0, 255, 0),
+                        color,
                         2,
                     )
 
@@ -299,10 +506,13 @@ class CaptureManager:
                     cv2.rectangle(
                         preview_img, (bbox.x1, bbox.y1), (bbox.x2, bbox.y2), (255, 0, 0), 2
                     )
-                    # Draw plate text
+                    # Draw plate text with track ID if available
+                    label = plate.text_clean
+                    if plate.detection.track_id is not None:
+                        label += f" T{plate.detection.track_id}"
                     cv2.putText(
                         preview_img,
-                        plate.text_clean,
+                        label,
                         (bbox.x1, bbox.y1 - 5),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.5,
@@ -314,6 +524,7 @@ class CaptureManager:
                 result = FrameResult(
                     frame=frame,
                     face_matches=face_matches,
+                    face_observations=face_observations,
                     plate_reads=plate_reads,
                     preview_image=preview_img,
                 )

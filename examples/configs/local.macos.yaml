@@ -1,0 +1,32 @@
+video:
+  source:
+    type: device           # device | rtsp | http_mjpeg | file
+    device_index: 1
+    backend: AVFOUNDATION  # macOS camera backend
+  fps_target: 10
+  frame_resize: [960, 540]
+  rotate_180: false
+
+face:
+  enabled: true
+  gallery_path: data/faces/trusted
+  similarity_threshold: 0.35
+  min_face_size: 64
+
+plates:
+  enabled: true
+  whitelist_path: data/plates/whitelist.csv
+  blacklist_path: data/plates/blacklist.csv
+  detector:
+    model_path: weights/yolov8n_plate.pt
+    conf_threshold: 0.25
+    iou_threshold: 0.45
+    max_det: 10
+  ocr:
+    tesseract_lang: "eng"
+    psm: 7
+    oem: 3
+    char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789- "
+  postprocess:
+    regex: "[A-Z0-9-]{4,10}"
+    uppercase: true
