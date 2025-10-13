@@ -53,7 +53,7 @@ def render_face_panel(
                 if face_crop is not None:
                     # Convert BGR to RGB for display
                     face_rgb = cv2.cvtColor(face_crop, cv2.COLOR_BGR2RGB)
-                    st.image(face_rgb, caption="Detected Face", use_container_width=True)
+                    st.image(face_rgb, caption="Detected Face", width="stretch")
                 else:
                     st.caption("No crop available")
 

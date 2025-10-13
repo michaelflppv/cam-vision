@@ -58,7 +58,7 @@ def render_plate_panel(plate_observations: list[PlateObservation], frame: Frame)
                 if plate_crop is not None:
                     # Convert BGR to RGB for display
                     plate_rgb = cv2.cvtColor(plate_crop, cv2.COLOR_BGR2RGB)
-                    st.image(plate_rgb, caption="Detected Plate", use_container_width=True)
+                    st.image(plate_rgb, caption="Detected Plate", width="stretch")
                 else:
                     st.caption("No crop available")
 
@@ -150,7 +150,7 @@ def render_plate_panel(plate_observations: list[PlateObservation], frame: Frame)
                     plate_crop = _extract_crop(frame.image, obs.detection.bbox)
                     if plate_crop is not None:
                         plate_rgb = cv2.cvtColor(plate_crop, cv2.COLOR_BGR2RGB)
-                        st.image(plate_rgb, caption="Detected Plate", use_container_width=True)
+                        st.image(plate_rgb, caption="Detected Plate", width="stretch")
                     else:
                         st.caption("No crop available")
 

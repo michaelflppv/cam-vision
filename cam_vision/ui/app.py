@@ -183,7 +183,7 @@ with st.sidebar:
                 "Connect",
                 type="primary",
                 disabled=st.session_state.connected,
-                use_container_width=True,
+                width="stretch",
             ):
                 if source_config:
                     with st.spinner("Connecting and initializing features..."):
@@ -207,9 +207,7 @@ with st.sidebar:
                     st.warning("Invalid source configuration")
 
         with col2:
-            if st.button(
-                "Disconnect", disabled=not st.session_state.connected, use_container_width=True
-            ):
+            if st.button("Disconnect", disabled=not st.session_state.connected, width="stretch"):
                 manager.stop()
                 st.session_state.connected = False
                 st.session_state.latest_frame = None
@@ -300,7 +298,7 @@ if mode == "Client (API Server)":
     col_fetch, col_clear = st.columns(2)
 
     with col_fetch:
-        if st.button("🔄 Fetch Events", type="primary", use_container_width=True):
+        if st.button("🔄 Fetch Events", type="primary", width="stretch"):
             try:
                 # Fetch face matches
                 if event_type_filter in ["Both", "Face Matches Only"]:
@@ -317,7 +315,7 @@ if mode == "Client (API Server)":
                 st.error(f"Failed to fetch events: {e}")
 
     with col_clear:
-        if st.button("🗑️ Clear Cache", use_container_width=True):
+        if st.button("🗑️ Clear Cache", width="stretch"):
             st.session_state.api_face_events = []
             st.session_state.api_plate_events = []
             st.success("Cache cleared")
@@ -357,7 +355,7 @@ else:
             st.subheader("Live Preview")
         with col_header2:
             if st.session_state.connected and not st.session_state.auto_refresh_enabled:
-                if st.button("🔄 Refresh", use_container_width=True, key="manual_refresh"):
+                if st.button("🔄 Refresh", width="stretch", key="manual_refresh"):
                     st.rerun()
 
         # Note about smooth video
@@ -472,7 +470,7 @@ else:
 
                 # Display frame with annotations
                 frame_rgb = cv2.cvtColor(frame_result.preview_image, cv2.COLOR_BGR2RGB)
-                preview_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
+                preview_placeholder.image(frame_rgb, channels="RGB", width="stretch")
 
                 # Show detection stats
                 matched_faces = sum(1 for obs in frame_result.face_observations if obs.matched)
@@ -486,7 +484,7 @@ else:
             elif st.session_state.get("latest_preview_image") is not None:
                 # Show last annotated frame
                 frame_rgb = cv2.cvtColor(st.session_state.latest_preview_image, cv2.COLOR_BGR2RGB)
-                preview_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
+                preview_placeholder.image(frame_rgb, channels="RGB", width="stretch")
 
                 counts = st.session_state.get(
                     "latest_detection_counts",
