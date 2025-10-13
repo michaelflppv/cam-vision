@@ -35,6 +35,9 @@ poetry install
 # Install pre-commit hooks
 poetry run pre-commit install
 
+# Run linters and formatters
+pre-commit run --all-files
+
 # Run tests
 poetry run pytest -q
 ```
