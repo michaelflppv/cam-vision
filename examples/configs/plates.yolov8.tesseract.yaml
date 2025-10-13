@@ -1,0 +1,20 @@
+plates:
+  enabled: true
+  whitelist_path: data/plates/whitelist.csv
+  blacklist_path: data/plates/blacklist.csv
+
+  detector:
+    model_path: weights/yolov8n_plate.pt
+    conf_threshold: 0.25
+    iou_threshold: 0.45
+    max_det: 10
+
+  ocr:
+    tesseract_lang: "eng"
+    psm: 7
+    oem: 3
+    char_whitelist: "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789- "
+
+  postprocess:
+    regex: "[A-Z0-9-]{4,10}"
+    uppercase: true
