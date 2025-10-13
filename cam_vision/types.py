@@ -81,6 +81,57 @@ class PlateRead:
     preprocessing_used: str = ""  # e.g., "grayscale,bilateral" for debugging
 
 
+PlateObservationStatus = Literal[
+    "candidate",
+    "read",
+    "ocr_low_confidence",
+    "ocr_short_text",
+    "ocr_error",
+    "rejected_aspect_ratio",
+    "rejected_size",
+]
+
+
+@dataclass(frozen=True)
+class PlateObservation:
+    """Plate detection observation for UI overlays and diagnostics."""
+
+    detection: Detection
+    text_raw: str = ""
+    text_clean: str = ""
+    confidence: float = 0.0
+    matched_list: Optional[Literal["whitelist", "blacklist"]] = None
+    status: PlateObservationStatus = "candidate"
+    reason: Optional[str] = None
+    preprocessing_used: str = ""
+
+    @property
+    def label(self) -> str:
+        """Human-readable label for overlays."""
+        if self.text_clean:
+            label = self.text_clean
+        elif self.text_raw:
+            label = self.text_raw
+        else:
+            label = "Plate"
+
+        if self.status == "ocr_low_confidence":
+            return f"{label} (?)"
+        if self.status == "ocr_short_text":
+            return f"{label} (short)"
+        if self.status == "ocr_error":
+            return f"{label} (error)"
+        return label
+
+    def is_rejected(self) -> bool:
+        """Return True if the observation was rejected before display."""
+        return self.status in {"rejected_aspect_ratio", "rejected_size"}
+
+    def is_displayable(self) -> bool:
+        """Return True if the observation should be rendered on preview overlays."""
+        return not self.is_rejected()
+
+
 @dataclass(frozen=True)
 class Event:
     """Unified event emitted by pipelines."""

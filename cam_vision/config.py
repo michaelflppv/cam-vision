@@ -192,10 +192,10 @@ class PlatesSettings(BaseModel):
     min_confidence: float = Field(
         0.55, ge=0.0, le=1.0, description="Overall event confidence threshold"
     )
-    min_aspect_ratio: float = Field(1.5, description="Minimum plate aspect ratio (width/height)")
-    max_aspect_ratio: float = Field(6.0, description="Maximum plate aspect ratio")
-    min_width_px: int = Field(80, description="Minimum plate width in pixels")
-    min_height_px: int = Field(20, description="Minimum plate height in pixels")
+    min_aspect_ratio: float = Field(1.2, description="Minimum plate aspect ratio (width/height)")
+    max_aspect_ratio: float = Field(8.5, description="Maximum plate aspect ratio")
+    min_width_px: int = Field(60, description="Minimum plate width in pixels")
+    min_height_px: int = Field(18, description="Minimum plate height in pixels")
 
 
 class EventsSettings(BaseModel):
