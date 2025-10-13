@@ -8,15 +8,17 @@ import streamlit as st
 from cam_vision.ui.async_helpers import run_async
 from cam_vision.ui.capture import CaptureManager
 from cam_vision.ui.client import SecureVisionClient
+from cam_vision.ui.components.diagnostics_panel import render_diagnostics_panel
 from cam_vision.ui.components.event_history import (
     render_face_history_panel,
     render_health_panel,
     render_plate_history_panel,
 )
+from cam_vision.ui.components.face_controls import render_face_controls
 from cam_vision.ui.components.face_panel import render_face_panel
 from cam_vision.ui.components.ocr_controls import render_ocr_controls
-from cam_vision.ui.components.plate_panel import render_plate_panel
 from cam_vision.ui.components.source_picker import render_source_picker
+from cam_vision.ui.components.tracking_controls import render_tracking_controls
 from cam_vision.ui.state import init_session_state
 
 # Page config
@@ -30,6 +32,36 @@ st.set_page_config(
 # Initialize session state
 init_session_state()
 
+# Inject dashboard styles once
+if not st.session_state.get("ui_dashboard_styles_loaded"):
+    st.markdown(
+        """
+        <style>
+        .sv-stat-card {
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            border-radius: 10px;
+            padding: 12px 16px;
+            margin-top: 4px;
+        }
+        .sv-stat-label {
+            font-size: 0.8rem;
+            color: rgba(255, 255, 255, 0.7);
+            text-transform: uppercase;
+            letter-spacing: 0.04em;
+            margin-bottom: 6px;
+        }
+        .sv-stat-value {
+            font-size: 1.8rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.92);
+            margin: 0;
+        }
+        </style>
+        """,
+        unsafe_allow_html=True,
+    )
+    st.session_state.ui_dashboard_styles_loaded = True
 # Initialize capture manager (faces + plates enabled by default)
 if "capture_manager" not in st.session_state:
     # Try to enable both features, will gracefully disable if dependencies missing
@@ -102,15 +134,28 @@ with st.sidebar:
         )
         st.session_state.fps_target = fps_target
 
+        ui_refresh_max = 10
+        ui_refresh_default = int(st.session_state.ui_refresh_fps)
+        ui_refresh_default = max(1, min(ui_refresh_max, ui_refresh_default))
+
         ui_refresh_fps = st.sidebar.slider(
             "UI Refresh FPS",
             min_value=1,
-            max_value=10,
-            value=st.session_state.ui_refresh_fps,
+            max_value=ui_refresh_max,
+            value=ui_refresh_default,
             key="ui_refresh_fps_slider",
-            help="Display refresh rate (2-5 FPS recommended). Lower values reduce flashing and CPU usage.",
+            help="Display refresh rate (higher = smoother but may flash more). Recommended: 5-10 FPS.",
         )
         st.session_state.ui_refresh_fps = ui_refresh_fps
+
+        # Auto-refresh toggle
+        auto_refresh = st.sidebar.checkbox(
+            "Auto-Refresh Video",
+            value=st.session_state.auto_refresh_enabled,
+            key="auto_refresh_checkbox",
+            help="Continuously update video preview. Disable for manual refresh only.",
+        )
+        st.session_state.auto_refresh_enabled = auto_refresh
 
         resize_options = {
             "None": None,
@@ -140,16 +185,23 @@ with st.sidebar:
                 use_container_width=True,
             ):
                 if source_config:
-                    try:
-                        manager.start(
-                            source_config=source_config,
-                            fps_target=fps_target,
-                            frame_resize=st.session_state.frame_resize,
-                        )
-                        st.session_state.connected = True
-                        st.rerun()
-                    except Exception as e:
-                        st.error(f"Failed to connect: {e}")
+                    with st.spinner("Connecting and initializing features..."):
+                        try:
+                            manager.start(
+                                source_config=source_config,
+                                fps_target=fps_target,
+                                frame_resize=st.session_state.frame_resize,
+                                face_similarity_threshold=st.session_state.face_similarity_threshold,
+                                tracking_enabled=st.session_state.tracking_enabled,
+                                frames_required=st.session_state.tracking_frames_required,
+                                iou_threshold=st.session_state.tracking_iou_threshold,
+                                max_age_frames=st.session_state.tracking_max_age_frames,
+                                ocr_agreement_threshold=st.session_state.tracking_ocr_agreement_threshold,
+                            )
+                            st.session_state.connected = True
+                            st.rerun()
+                        except Exception as e:
+                            st.error(f"Failed to connect: {e}")
                 else:
                     st.warning("Invalid source configuration")
 
@@ -161,7 +213,10 @@ with st.sidebar:
                 st.session_state.connected = False
                 st.session_state.latest_frame = None
                 st.session_state.latest_face_matches = []
+                st.session_state.latest_face_observations = []
                 st.session_state.latest_plate_reads = []
+                st.session_state.latest_preview_image = None
+                st.session_state.latest_detection_counts = {"known": 0, "unknown": 0, "plates": 0}
                 st.rerun()
 
         # Connection status
@@ -170,9 +225,22 @@ with st.sidebar:
         else:
             st.sidebar.info("⚪ Disconnected")
 
+        # Face recognition controls (collapsible)
+        with st.sidebar.expander("👤 Face Recognition Settings", expanded=False):
+            render_face_controls()
+
         # OCR controls (collapsible)
         with st.sidebar.expander("🔧 OCR Tuning", expanded=False):
             render_ocr_controls()
+
+        # Tracking controls (collapsible)
+        with st.sidebar.expander("🎯 Tracking & Confirmation", expanded=False):
+            render_tracking_controls()
+
+        # System diagnostics (collapsible)
+        st.sidebar.divider()
+        with st.sidebar.expander("🔍 System Diagnostics", expanded=False):
+            render_diagnostics_panel()
 
 # Main content area - Mode-specific rendering
 if mode == "Client (API Server)":
@@ -275,7 +343,21 @@ else:
     col_preview, col_results = st.columns([2, 1])
 
     with col_preview:
-        st.subheader("Live Preview")
+        # Header with manual refresh button
+        col_header1, col_header2 = st.columns([3, 1])
+        with col_header1:
+            st.subheader("Live Preview")
+        with col_header2:
+            if st.session_state.connected and not st.session_state.auto_refresh_enabled:
+                if st.button("🔄 Refresh", use_container_width=True, key="manual_refresh"):
+                    st.rerun()
+
+        # Note about smooth video
+        if st.session_state.connected and st.session_state.auto_refresh_enabled:
+            st.caption(
+                "💡 **Tip:** For smoother video without page refreshes, use the CLI tool: "
+                "`poetry run securevision-face-demo --source-type device --device 1 --preview`"
+            )
 
         # Create placeholders for stats to prevent flashing
         col_fps, col_frames, col_status = st.columns(3)
@@ -289,9 +371,29 @@ else:
         with col_status:
             status_placeholder = st.empty()
 
-        # Video preview placeholder
+        # Video preview placeholder + stats cards
         preview_placeholder = st.empty()
-        stats_info_placeholder = st.empty()
+        stats_known_col, stats_unknown_col, stats_plate_col = st.columns(3)
+
+        def _stat_card(label: str, value: str | int) -> str:
+            return f"""
+                <div class="sv-stat-card">
+                    <div class="sv-stat-label">{label}</div>
+                    <div class="sv-stat-value">{value}</div>
+                </div>
+            """
+
+        def _render_stats(known: int, unknown: int, plates: int) -> None:
+            """Render detection stats without animated transitions."""
+            st.session_state.latest_detection_counts = {
+                "known": known,
+                "unknown": unknown,
+                "plates": plates,
+            }
+
+            stats_known_col.markdown(_stat_card("Known Faces", known), unsafe_allow_html=True)
+            stats_unknown_col.markdown(_stat_card("Unknown Faces", unknown), unsafe_allow_html=True)
+            stats_plate_col.markdown(_stat_card("Detected Plates", plates), unsafe_allow_html=True)
 
         if st.session_state.connected:
             # Get latest frame
@@ -299,55 +401,130 @@ else:
 
             # Update stats display
             stats = manager.get_stats()
-            fps_placeholder.metric("Actual FPS", f"{stats['fps']:.1f}")
-            frames_placeholder.metric("Frame Count", stats["frame_count"])
+            fps_placeholder.markdown(
+                _stat_card("Actual FPS", f"{stats['fps']:.1f}"), unsafe_allow_html=True
+            )
+            frames_placeholder.markdown(
+                _stat_card("Frame Count", stats["frame_count"]), unsafe_allow_html=True
+            )
 
-            # Feature status indicators
-            face_status = "🟢" if manager.enable_faces else "🔴"
-            plate_status = "🟢" if manager.enable_plates else "🔴"
-            status_placeholder.metric("Features", f"{face_status} Faces | {plate_status} Plates")
+            # Feature status indicators with initialization info
+            init_status = manager.get_init_status()
+
+            # Face status with error indicator
+            if init_status["faces_enabled"]:
+                if init_status["gallery_persons"] > 0:
+                    face_status = f"🟢 ({init_status['gallery_persons']} persons)"
+                else:
+                    face_status = "🟢"
+            elif init_status["face_error"]:
+                face_status = "🔴 Error"
+            else:
+                face_status = "⚪ Off"
+
+            # Plate status with error indicator
+            if init_status["plates_enabled"]:
+                plate_status = "🟢"
+            elif init_status["plate_error"]:
+                plate_status = "🔴 Error"
+            else:
+                plate_status = "⚪ Off"
+
+            status_placeholder.markdown(
+                _stat_card("Feature Status", f"Faces: {face_status} | Plates: {plate_status}"),
+                unsafe_allow_html=True,
+            )
+
+            # Show initialization errors prominently
+            if init_status["face_error"]:
+                st.error(
+                    f"⚠️ **Face Recognition Error:** {init_status['face_error']}\n\n"
+                    "Check System Diagnostics in sidebar for details."
+                )
+
+            if init_status["plate_error"]:
+                st.error(
+                    f"⚠️ **Plate Detection Error:** {init_status['plate_error']}\n\n"
+                    "Check System Diagnostics in sidebar for details."
+                )
 
             if frame_result:
                 # Update session state
                 st.session_state.latest_frame = frame_result.frame
                 st.session_state.latest_face_matches = frame_result.face_matches
+                st.session_state.latest_face_observations = frame_result.face_observations
                 st.session_state.latest_plate_reads = frame_result.plate_reads
+                st.session_state.latest_preview_image = frame_result.preview_image.copy()
 
                 # Display frame with annotations
                 frame_rgb = cv2.cvtColor(frame_result.preview_image, cv2.COLOR_BGR2RGB)
                 preview_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
 
                 # Show detection stats
-                face_count = len(frame_result.face_matches)
+                matched_faces = sum(1 for obs in frame_result.face_observations if obs.matched)
+                unknown_faces = len(frame_result.face_observations) - matched_faces
                 plate_count = len(frame_result.plate_reads)
-                stats_info_placeholder.info(
-                    f"👤 {face_count} face(s) matched | 🚗 {plate_count} plate(s) detected"
-                )
-            elif st.session_state.get("latest_frame"):
-                # Show last frame
-                frame_rgb = cv2.cvtColor(st.session_state.latest_frame.image, cv2.COLOR_BGR2RGB)
+                _render_stats(matched_faces, unknown_faces, plate_count)
+            elif st.session_state.get("latest_preview_image") is not None:
+                # Show last annotated frame
+                frame_rgb = cv2.cvtColor(st.session_state.latest_preview_image, cv2.COLOR_BGR2RGB)
                 preview_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
-                stats_info_placeholder.info("👤 0 face(s) matched | 🚗 0 plate(s) detected")
+
+                counts = st.session_state.get(
+                    "latest_detection_counts", {"known": 0, "unknown": 0, "plates": 0}
+                )
+                _render_stats(
+                    counts.get("known", 0),
+                    counts.get("unknown", 0),
+                    counts.get("plates", 0),
+                )
             else:
                 preview_placeholder.info("Waiting for frames...")
-                stats_info_placeholder.info("No detections yet")
+                _render_stats(0, 0, 0)
 
-            # Auto-refresh at UI refresh rate
-            refresh_delay = 1.0 / st.session_state.ui_refresh_fps
-            time.sleep(refresh_delay)
-            st.rerun()
+            # Auto-refresh at UI refresh rate (only if enabled)
+            if st.session_state.auto_refresh_enabled:
+                refresh_delay = 1.0 / st.session_state.ui_refresh_fps
+                time.sleep(refresh_delay)
+                st.rerun()
         else:
             # Show initial stats when disconnected
             stats = manager.get_stats()
-            fps_placeholder.metric("Actual FPS", f"{stats['fps']:.1f}")
-            frames_placeholder.metric("Frame Count", stats["frame_count"])
+            fps_placeholder.markdown(
+                _stat_card("Actual FPS", f"{stats['fps']:.1f}"), unsafe_allow_html=True
+            )
+            frames_placeholder.markdown(
+                _stat_card("Frame Count", stats["frame_count"]), unsafe_allow_html=True
+            )
 
-            face_status = "🟢" if manager.enable_faces else "🔴"
-            plate_status = "🟢" if manager.enable_plates else "🔴"
-            status_placeholder.metric("Features", f"{face_status} Faces | {plate_status} Plates")
+            init_status = manager.get_init_status()
+
+            # Face status
+            if init_status["faces_enabled"]:
+                if init_status["gallery_persons"] > 0:
+                    face_status = f"🟢 ({init_status['gallery_persons']} persons)"
+                else:
+                    face_status = "🟢"
+            elif init_status["face_error"]:
+                face_status = "🔴 Error"
+            else:
+                face_status = "⚪ Off"
+
+            # Plate status
+            if init_status["plates_enabled"]:
+                plate_status = "🟢"
+            elif init_status["plate_error"]:
+                plate_status = "🔴 Error"
+            else:
+                plate_status = "⚪ Off"
+
+            status_placeholder.markdown(
+                _stat_card("Feature Status", f"Faces: {face_status} | Plates: {plate_status}"),
+                unsafe_allow_html=True,
+            )
 
             preview_placeholder.info("Click 'Connect' to start preview")
-            stats_info_placeholder.info("No detections yet")
+            _render_stats(0, 0, 0)
 
 
 # Results panels (below preview)
@@ -364,27 +541,3 @@ with col_faces:
             st.session_state.latest_frame,
             similarity_threshold=threshold,
         )
-    else:
-        st.subheader("Face Matches")
-        if not manager.enable_faces:
-            st.warning(
-                "⚠️ Face recognition disabled. "
-                "Check that gallery is enrolled and configured correctly."
-            )
-        else:
-            st.info("👤 No faces matched yet. Waiting for recognized persons...")
-
-with col_plates:
-    if st.session_state.get("latest_plate_reads") and st.session_state.get("latest_frame"):
-        render_plate_panel(
-            st.session_state.latest_plate_reads,
-            st.session_state.latest_frame,
-        )
-    else:
-        st.subheader("Plate Detections")
-        if not manager.enable_plates:
-            st.warning(
-                "⚠️ Plate detection disabled. " "Check that YOLO model exists at configured path."
-            )
-        else:
-            st.info("🚗 No plates detected yet. Waiting for vehicles...")
