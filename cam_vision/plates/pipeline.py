@@ -3,10 +3,11 @@
 from __future__ import annotations
 
 import logging
-from typing import Iterable
+from dataclasses import replace
+from typing import Iterable, List
 
 from ..pipeline.base import Processor
-from ..types import Event, Frame, PlateRead
+from ..types import Event, Frame, PlateObservation, PlateRead
 from .detector import YOLOPlateDetector
 from .lists import PlateListLoader
 from .ocr import TesseractOCR
@@ -72,7 +73,9 @@ class PlateRecognizer(Processor):
             "successful_reads": 0,
             "whitelist_matches": 0,
             "blacklist_matches": 0,
+            "ocr_errors": 0,
         }
+        self._latest_observations: List[PlateObservation] = []
 
     def open(self) -> None:
         """Load detector, OCR, and lists."""
@@ -85,6 +88,8 @@ class PlateRecognizer(Processor):
         self.detector.load()
         self.ocr.load()
         self.lists.load()
+
+        self._latest_observations = []
 
         logger.info(
             f"PlateRecognizer ready: {self.lists.size()} plates in lists, "
@@ -103,15 +108,19 @@ class PlateRecognizer(Processor):
         """
         self._stats["total_frames"] += 1
 
+        observations: List[PlateObservation] = []
+
         # Step 1: Detect plates
         try:
             detections = self.detector.detect(frame.image)
         except Exception as e:
             logger.error(f"Plate detection failed: {e}")
+            self._latest_observations = []
             return
 
         if len(detections) == 0:
             logger.debug(f"No plates detected in frame {frame.ts_ms}")
+            self._latest_observations = []
             return
 
         self._stats["total_detections"] += len(detections)
@@ -130,6 +139,16 @@ class PlateRecognizer(Processor):
                     f"Plate rejected: aspect ratio {aspect_ratio:.2f} "
                     f"not in range [{self.min_aspect_ratio}, {self.max_aspect_ratio}]"
                 )
+                observations.append(
+                    PlateObservation(
+                        detection=detection,
+                        status="rejected_aspect_ratio",
+                        reason=(
+                            f"aspect {aspect_ratio:.2f} outside "
+                            f"[{self.min_aspect_ratio}, {self.max_aspect_ratio}]"
+                        ),
+                    )
+                )
                 continue
 
             # Quality gate: minimum size
@@ -139,6 +158,16 @@ class PlateRecognizer(Processor):
                     f"Plate rejected: size {width}x{height}px too small "
                     f"(min={self.min_width_px}x{self.min_height_px}px)"
                 )
+                observations.append(
+                    PlateObservation(
+                        detection=detection,
+                        status="rejected_size",
+                        reason=(
+                            f"size {width}x{height}px < "
+                            f"{self.min_width_px}x{self.min_height_px}px"
+                        ),
+                    )
+                )
                 continue
 
             # Step 3: OCR
@@ -146,16 +175,43 @@ class PlateRecognizer(Processor):
                 ocr_result = self.ocr.extract_text(frame.image, bbox)
             except Exception as e:
                 logger.error(f"OCR extraction failed: {e}")
+                self._stats["ocr_errors"] += 1
+                observations.append(
+                    PlateObservation(
+                        detection=detection,
+                        status="ocr_error",
+                        reason=str(e),
+                    )
+                )
                 continue
 
             # Quality gate: OCR confidence
             # Convert OCR confidence (0-100) to 0-1 scale for comparison
             ocr_conf_normalized = ocr_result.confidence / 100.0
+
+            base_observation = PlateObservation(
+                detection=detection,
+                text_raw=ocr_result.text_raw,
+                text_clean=ocr_result.text_clean,
+                confidence=ocr_result.confidence,
+                preprocessing_used=ocr_result.preprocessing_used,
+            )
+
             if ocr_conf_normalized < self.min_confidence:
                 self._stats["rejected_ocr_confidence"] += 1
                 logger.debug(
                     f"Plate rejected: OCR confidence {ocr_result.confidence:.1f}% "
                     f"below threshold {self.min_confidence*100:.1f}%"
+                )
+                observations.append(
+                    replace(
+                        base_observation,
+                        status="ocr_low_confidence",
+                        reason=(
+                            f"confidence {ocr_result.confidence:.1f}% < "
+                            f"{self.min_confidence*100:.1f}%"
+                        ),
+                    )
                 )
                 continue
 
@@ -165,6 +221,15 @@ class PlateRecognizer(Processor):
                 logger.debug(
                     f"Plate rejected: text '{ocr_result.text_clean}' too short "
                     f"(min={self.ocr.min_text_length})"
+                )
+                observations.append(
+                    replace(
+                        base_observation,
+                        status="ocr_short_text",
+                        reason=(
+                            f"length {len(ocr_result.text_clean)} < " f"{self.ocr.min_text_length}"
+                        ),
+                    )
                 )
                 continue
 
@@ -187,6 +252,14 @@ class PlateRecognizer(Processor):
                 preprocessing_used=ocr_result.preprocessing_used,
             )
 
+            observations.append(
+                replace(
+                    base_observation,
+                    status="read",
+                    matched_list=matched_list,
+                )
+            )
+
             # Step 6: Emit Event
             event = Event(
                 type="plate_read",
@@ -203,10 +276,17 @@ class PlateRecognizer(Processor):
 
             yield event
 
+        self._latest_observations = observations
+
+    def get_latest_observations(self) -> List[PlateObservation]:
+        """Return plate detections (including pending OCR) from the latest processed frame."""
+        return list(self._latest_observations)
+
     def close(self) -> None:
         """Clean up resources and log statistics."""
         logger.info("Closing PlateRecognizer")
         logger.info(f"Statistics: {self._format_stats()}")
+        self._latest_observations = []
 
     def _format_stats(self) -> str:
         """Format statistics as human-readable string."""
@@ -223,13 +303,14 @@ class PlateRecognizer(Processor):
         reject_len = stats["rejected_text_length"]
         wl = stats["whitelist_matches"]
         bl = stats["blacklist_matches"]
+        ocr_errors = stats["ocr_errors"]
 
         return (
             f"frames={stats['total_frames']}, "
             f"detections={total_det}, "
             f"successful={successful} ({100*successful/total_det:.1f}%), "
             f"rejected: aspect_ratio={reject_ar}, size={reject_size}, "
-            f"conf={reject_conf}, length={reject_len}, "
+            f"conf={reject_conf}, length={reject_len}, ocr_errors={ocr_errors}, "
             f"matches: whitelist={wl}, blacklist={bl}"
         )
 

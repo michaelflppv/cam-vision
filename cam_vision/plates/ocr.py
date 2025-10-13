@@ -274,6 +274,9 @@ class TesseractOCR:
         if self.to_uppercase:
             text = text.upper()
 
+        # Normalize accented and Cyrillic characters to Latin equivalents
+        text = self._normalize_characters(text)
+
         # Character substitutions (common OCR errors)
         if self.substitute_o_to_0:
             text = text.replace("O", "0")
@@ -284,6 +287,62 @@ class TesseractOCR:
         # Regex: keep only whitelisted characters
         allowed_pattern = re.escape(self.char_whitelist)
         text = re.sub(f"[^{allowed_pattern}]", "", text)
+
+        return text
+
+    def _normalize_characters(self, text: str) -> str:
+        """Normalize accented and Cyrillic characters for consistent post-processing."""
+        replacements = {
+            "Ä": "A",
+            "Å": "A",
+            "Æ": "AE",
+            "Ç": "C",
+            "È": "E",
+            "É": "E",
+            "Ê": "E",
+            "Ë": "E",
+            "Ö": "O",
+            "Ø": "O",
+            "Ó": "O",
+            "Ò": "O",
+            "Ô": "O",
+            "Õ": "O",
+            "Ü": "U",
+            "Ú": "U",
+            "Ű": "U",
+            "Ł": "L",
+            "Š": "S",
+            "Ś": "S",
+            "Ž": "Z",
+            "Ż": "Z",
+            "Ź": "Z",
+            "Č": "C",
+            "Ć": "C",
+            "Ñ": "N",
+            "·": "",
+        }
+
+        for original, replacement in replacements.items():
+            text = text.replace(original, replacement)
+
+        cyrillic_map = {
+            "А": "A",
+            "В": "B",
+            "Е": "E",
+            "К": "K",
+            "М": "M",
+            "Н": "H",
+            "О": "O",
+            "Р": "P",
+            "С": "C",
+            "Т": "T",
+            "У": "Y",
+            "Х": "X",
+            "Ё": "E",
+        }
+
+        for original, replacement in cyrillic_map.items():
+            text = text.replace(original, replacement)
 
         return text
 
