@@ -6,7 +6,7 @@ import logging
 import queue
 import threading
 import time
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from pathlib import Path
 from typing import List, Optional
 
@@ -22,7 +22,14 @@ from cam_vision.plates.detector import YOLOPlateDetector
 from cam_vision.plates.lists import PlateListLoader
 from cam_vision.plates.ocr import TesseractOCR
 from cam_vision.plates.pipeline import PlateRecognizer
-from cam_vision.types import Detection, FaceMatch, FaceObservation, Frame, PlateRead
+from cam_vision.types import (
+    Detection,
+    FaceMatch,
+    FaceObservation,
+    Frame,
+    PlateObservation,
+    PlateRead,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -35,6 +42,7 @@ class FrameResult:
     face_matches: List[FaceMatch]
     face_observations: List[FaceObservation]
     plate_reads: List[PlateRead]
+    plate_observations: List[PlateObservation]
     preview_image: np.ndarray
 
 
@@ -271,8 +279,9 @@ class CaptureManager:
             input_size=self.settings.plates.detector.input_size,
         )
 
-        # Create OCR
-        ocr = TesseractOCR(self.settings.plates.ocr)
+        # Create OCR from config
+        ocr_config = self.settings.plates.ocr
+        ocr = TesseractOCR(**ocr_config.model_dump())
 
         # Load plate lists
         lists = PlateListLoader(
@@ -440,6 +449,60 @@ class CaptureManager:
 
         return enriched
 
+    def _collect_plate_observations(self, plate_reads: List[PlateRead]) -> List[PlateObservation]:
+        """Retrieve plate observations (matched and pending OCR) from recognizer."""
+        processor = self.plate_recognizer
+        if processor is None:
+            return []
+
+        observations: List[PlateObservation] = []
+        candidate_processors = [processor]
+        wrapped = getattr(processor, "wrapped_processor", None)
+        if wrapped is not None:
+            candidate_processors.append(wrapped)
+
+        for candidate in candidate_processors:
+            if hasattr(candidate, "get_latest_observations"):
+                try:
+                    observations = candidate.get_latest_observations()  # type: ignore[attr-defined]
+                except Exception as exc:
+                    logger.error(f"Failed to fetch plate observations: {exc}")
+                    observations = []
+                break
+
+        if not observations:
+            return []
+
+        # Map detections with confirmed track IDs when available
+        track_lookup: dict[tuple[int, int, int, int], int] = {}
+        for plate in plate_reads:
+            if plate.detection.track_id is None:
+                continue
+            bbox = plate.detection.bbox
+            track_lookup[(bbox.x1, bbox.y1, bbox.x2, bbox.y2)] = plate.detection.track_id
+
+        if not track_lookup:
+            return list(observations)
+
+        enriched: List[PlateObservation] = []
+        for observation in observations:
+            bbox = observation.detection.bbox
+            track_id = track_lookup.get((bbox.x1, bbox.y1, bbox.x2, bbox.y2))
+            if track_id is None or observation.detection.track_id == track_id:
+                enriched.append(observation)
+                continue
+
+            enriched_detection = Detection(
+                kind=observation.detection.kind,
+                bbox=observation.detection.bbox,
+                score=observation.detection.score,
+                track_id=track_id,
+            )
+
+            enriched.append(replace(observation, detection=enriched_detection))
+
+        return enriched
+
     def _capture_loop(self):
         """Background capture loop with face and plate recognition."""
         try:
@@ -478,6 +541,11 @@ class CaptureManager:
                             plate_reads.append(event.payload)
                     except Exception as e:
                         logger.error(f"Plate recognition failed: {e}")
+                plate_observations: List[PlateObservation] = (
+                    self._collect_plate_observations(plate_reads)
+                    if self.enable_plates and self.plate_recognizer
+                    else []
+                )
 
                 # Create preview image with annotations
                 preview_img = frame.image.copy()
@@ -500,23 +568,49 @@ class CaptureManager:
                         2,
                     )
 
-                # Draw plate detection boxes (blue for plates)
-                for plate in plate_reads:
-                    bbox = plate.detection.bbox
-                    cv2.rectangle(
-                        preview_img, (bbox.x1, bbox.y1), (bbox.x2, bbox.y2), (255, 0, 0), 2
-                    )
-                    # Draw plate text with track ID if available
-                    label = plate.text_clean
-                    if plate.detection.track_id is not None:
-                        label += f" T{plate.detection.track_id}"
+                # Draw plate detection boxes with status-aware colors
+                for observation in plate_observations:
+                    if not observation.is_displayable():
+                        continue
+
+                    bbox = observation.detection.bbox
+
+                    if observation.status == "read":
+                        if observation.matched_list == "whitelist":
+                            color = (0, 255, 0)  # green
+                        elif observation.matched_list == "blacklist":
+                            color = (0, 0, 255)  # red
+                        else:
+                            color = (255, 0, 0)  # blue
+                    elif observation.status == "ocr_low_confidence":
+                        color = (0, 165, 255)  # amber
+                    elif observation.status == "ocr_short_text":
+                        color = (255, 255, 0)  # yellow
+                    elif observation.status == "ocr_error":
+                        color = (128, 128, 128)  # gray
+                    else:
+                        color = (255, 0, 0)
+
+                    cv2.rectangle(preview_img, (bbox.x1, bbox.y1), (bbox.x2, bbox.y2), color, 2)
+
+                    label = observation.label
+                    if observation.status == "ocr_low_confidence":
+                        label += " [low conf]"
+                    elif observation.status == "ocr_short_text":
+                        label += " [short]"
+                    elif observation.status == "ocr_error":
+                        label += " [ocr]"
+
+                    if observation.detection.track_id is not None:
+                        label += f" T{observation.detection.track_id}"
+
                     cv2.putText(
                         preview_img,
                         label,
-                        (bbox.x1, bbox.y1 - 5),
+                        (bbox.x1, max(0, bbox.y1 - 5)),
                         cv2.FONT_HERSHEY_SIMPLEX,
                         0.5,
-                        (255, 0, 0),
+                        color,
                         2,
                     )
 
@@ -526,6 +620,7 @@ class CaptureManager:
                     face_matches=face_matches,
                     face_observations=face_observations,
                     plate_reads=plate_reads,
+                    plate_observations=plate_observations,
                     preview_image=preview_img,
                 )
 

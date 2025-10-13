@@ -17,6 +17,7 @@ from cam_vision.ui.components.event_history import (
 from cam_vision.ui.components.face_controls import render_face_controls
 from cam_vision.ui.components.face_panel import render_face_panel
 from cam_vision.ui.components.ocr_controls import render_ocr_controls
+from cam_vision.ui.components.plate_panel import render_plate_panel
 from cam_vision.ui.components.source_picker import render_source_picker
 from cam_vision.ui.components.tracking_controls import render_tracking_controls
 from cam_vision.ui.state import init_session_state
@@ -215,8 +216,15 @@ with st.sidebar:
                 st.session_state.latest_face_matches = []
                 st.session_state.latest_face_observations = []
                 st.session_state.latest_plate_reads = []
+                st.session_state.latest_plate_observations = []
                 st.session_state.latest_preview_image = None
-                st.session_state.latest_detection_counts = {"known": 0, "unknown": 0, "plates": 0}
+                st.session_state.latest_detection_counts = {
+                    "known": 0,
+                    "unknown": 0,
+                    "plates_read": 0,
+                    "plates_pending": 0,
+                    "plates": 0,
+                }
                 st.rerun()
 
         # Connection status
@@ -383,17 +391,22 @@ else:
                 </div>
             """
 
-        def _render_stats(known: int, unknown: int, plates: int) -> None:
+        def _render_stats(known: int, unknown: int, plates_read: int, plates_pending: int) -> None:
             """Render detection stats without animated transitions."""
             st.session_state.latest_detection_counts = {
                 "known": known,
                 "unknown": unknown,
-                "plates": plates,
+                "plates_read": plates_read,
+                "plates_pending": plates_pending,
+                "plates": plates_read + plates_pending,
             }
 
             stats_known_col.markdown(_stat_card("Known Faces", known), unsafe_allow_html=True)
             stats_unknown_col.markdown(_stat_card("Unknown Faces", unknown), unsafe_allow_html=True)
-            stats_plate_col.markdown(_stat_card("Detected Plates", plates), unsafe_allow_html=True)
+            stats_plate_col.markdown(
+                _stat_card("Detected Plates", f"{plates_read} read / {plates_pending} pending"),
+                unsafe_allow_html=True,
+            )
 
         if st.session_state.connected:
             # Get latest frame
@@ -454,6 +467,7 @@ else:
                 st.session_state.latest_face_matches = frame_result.face_matches
                 st.session_state.latest_face_observations = frame_result.face_observations
                 st.session_state.latest_plate_reads = frame_result.plate_reads
+                st.session_state.latest_plate_observations = frame_result.plate_observations
                 st.session_state.latest_preview_image = frame_result.preview_image.copy()
 
                 # Display frame with annotations
@@ -463,24 +477,35 @@ else:
                 # Show detection stats
                 matched_faces = sum(1 for obs in frame_result.face_observations if obs.matched)
                 unknown_faces = len(frame_result.face_observations) - matched_faces
-                plate_count = len(frame_result.plate_reads)
-                _render_stats(matched_faces, unknown_faces, plate_count)
+                plate_observations = frame_result.plate_observations
+                plates_read = sum(1 for obs in plate_observations if obs.status == "read")
+                plates_pending = sum(
+                    1 for obs in plate_observations if obs.status != "read" and obs.is_displayable()
+                )
+                _render_stats(matched_faces, unknown_faces, plates_read, plates_pending)
             elif st.session_state.get("latest_preview_image") is not None:
                 # Show last annotated frame
                 frame_rgb = cv2.cvtColor(st.session_state.latest_preview_image, cv2.COLOR_BGR2RGB)
                 preview_placeholder.image(frame_rgb, channels="RGB", use_container_width=True)
 
                 counts = st.session_state.get(
-                    "latest_detection_counts", {"known": 0, "unknown": 0, "plates": 0}
+                    "latest_detection_counts",
+                    {
+                        "known": 0,
+                        "unknown": 0,
+                        "plates_read": 0,
+                        "plates_pending": 0,
+                    },
                 )
                 _render_stats(
                     counts.get("known", 0),
                     counts.get("unknown", 0),
-                    counts.get("plates", 0),
+                    counts.get("plates_read", 0),
+                    counts.get("plates_pending", 0),
                 )
             else:
                 preview_placeholder.info("Waiting for frames...")
-                _render_stats(0, 0, 0)
+                _render_stats(0, 0, 0, 0)
 
             # Auto-refresh at UI refresh rate (only if enabled)
             if st.session_state.auto_refresh_enabled:
@@ -524,7 +549,7 @@ else:
             )
 
             preview_placeholder.info("Click 'Connect' to start preview")
-            _render_stats(0, 0, 0)
+            _render_stats(0, 0, 0, 0)
 
 
 # Results panels (below preview)
@@ -541,3 +566,12 @@ with col_faces:
             st.session_state.latest_frame,
             similarity_threshold=threshold,
         )
+
+with col_plates:
+    if st.session_state.get("latest_plate_observations") and st.session_state.get("latest_frame"):
+        render_plate_panel(
+            st.session_state.latest_plate_observations,
+            st.session_state.latest_frame,
+        )
+    else:
+        st.info("🚗 No plate observations available yet.")

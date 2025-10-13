@@ -144,6 +144,9 @@ def init_session_state() -> None:
     if "latest_plate_reads" not in st.session_state:
         st.session_state.latest_plate_reads = []
 
+    if "latest_plate_observations" not in st.session_state:
+        st.session_state.latest_plate_observations = []
+
     # Legacy field for backwards compatibility
     if "latest_detections" not in st.session_state:
         st.session_state.latest_detections = []
@@ -151,7 +154,13 @@ def init_session_state() -> None:
     if "latest_preview_image" not in st.session_state:
         st.session_state.latest_preview_image = None
     if "latest_detection_counts" not in st.session_state:
-        st.session_state.latest_detection_counts = {"known": 0, "unknown": 0, "plates": 0}
+        st.session_state.latest_detection_counts = {
+            "known": 0,
+            "unknown": 0,
+            "plates_read": 0,
+            "plates_pending": 0,
+            "plates": 0,
+        }
 
     if "capture_stats" not in st.session_state:
         st.session_state.capture_stats = {"fps": 0.0, "frame_count": 0}
