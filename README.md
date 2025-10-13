@@ -210,6 +210,12 @@ export SECUREVISION__PLATES__BLACKLIST_PATH=./data/plates/blacklist.csv
 
 See [`examples/env/alpr-basic.env`](examples/env/alpr-basic.env) for full settings including OCR configuration.
 
+### European & Russian Plates
+
+- Accented Latin and Cyrillic characters are normalised automatically so EU/RU formats survive OCR cleanup.
+- For Cyrillic text, install the `rus` language pack for Tesseract (e.g. `brew install tesseract-lang` on macOS) and optionally set `SECUREVISION__PLATES__OCR__TESSERACT_LANG=eng+rus`.
+- The dashboard and preview CLI now surface low-confidence plate reads alongside confirmed matches, making it easier to tune thresholds and spot unrecognised plates.
+
 **Regional Plate Format Examples:**
 - US plates: `SECUREVISION__PLATES__POSTPROCESS__REGEX="[A-Z0-9]{6,7}"`
 - EU plates: `SECUREVISION__PLATES__POSTPROCESS__REGEX="[A-Z]{1,3}[0-9]{1,4}[A-Z]{0,2}"`
@@ -372,6 +378,20 @@ poetry run securevision-ui
 # 4. View live preview + adjust settings in real-time
 ```
 
+### Lightweight Preview (No Streamlit)
+
+Prefer a fast OpenCV window without the Streamlit dashboard?
+
+```bash
+# Launch preview window with face + plate overlays
+poetry run securevision-preview --source-type device --device 0 --backend AVFOUNDATION
+```
+
+- Same annotated preview and stats as the dashboard
+- Press `q` in the window (or `Ctrl+C`) to exit
+- Use `--no-faces`, `--no-plates`, or `--fps 10` for resource-constrained devices
+- Works with device/RTSP/HTTP/file sources just like the dashboard
+
 ### Dashboard Modes
 
 **Standalone Mode (Local Processing):**
@@ -404,6 +424,10 @@ poetry run securevision-ui
 - Preprocessing pipeline (grayscale, bilateral, adaptive threshold, CLAHE)
 - Image upscale factor (1x/2x/3x for small plates)
 - Crop margin adjustment
+
+**Plate Insights:**
+- Recognised plates and low-confidence reads are listed side-by-side with detection/OCR metrics
+- Track-aware overlays colour-code whitelist, blacklist, and pending detections in both the dashboard and preview window
 
 **OCR Presets:**
 - Fast (Grayscale Only) - Lowest overhead
