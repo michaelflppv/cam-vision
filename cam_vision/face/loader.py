@@ -3,12 +3,34 @@
 from __future__ import annotations
 
 import logging
+from functools import wraps
 from typing import TYPE_CHECKING, Optional
 
 logger = logging.getLogger(__name__)
 
 if TYPE_CHECKING:
     from insightface.app import FaceAnalysis
+
+
+def _ensure_numpy_lstsq_future_default() -> None:
+    """Patch numpy.linalg.lstsq to use rcond=None when omitted."""
+    try:
+        import numpy as np
+    except ImportError:
+        return
+
+    current = np.linalg.lstsq
+    if getattr(current, "_sv_default_rcond", False):
+        return
+
+    @wraps(current)
+    def _patched_lstsq(a, b, *args, **kwargs):
+        if not args and "rcond" not in kwargs:
+            kwargs["rcond"] = None
+        return current(a, b, *args, **kwargs)
+
+    _patched_lstsq._sv_default_rcond = True  # type: ignore[attr-defined]
+    np.linalg.lstsq = _patched_lstsq
 
 
 class FaceModels:
@@ -40,6 +62,7 @@ class FaceModels:
             logger.info("Loading InsightFace models (first use, may download ~100MB)...")
 
             try:
+                _ensure_numpy_lstsq_future_default()
                 from insightface.app import FaceAnalysis
 
                 # Initialize with CPU provider
