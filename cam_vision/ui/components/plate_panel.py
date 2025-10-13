@@ -19,14 +19,16 @@ def render_plate_panel(plate_reads: list[PlateRead], frame: Frame):
         plate_reads: List of PlateRead objects
         frame: Frame containing the source image
     """
-    st.subheader("Plate Detections")
+    panel = st.container()
+    panel.subheader("Plate Detections")
 
     if not plate_reads:
-        st.info("🚗 No plates detected yet. Waiting for vehicles...")
+        panel.info("🚗 No plates detected yet. Waiting for vehicles...")
         return
 
     # Show last 5 detections
-    for i, plate in enumerate(reversed(plate_reads[-5:])):
+    recent_reads = list(reversed(plate_reads[-5:]))
+    for i, plate in enumerate(recent_reads):
         # Icon and color based on list match
         if plate.matched_list == "whitelist":
             icon = "✅"
@@ -38,10 +40,9 @@ def render_plate_panel(plate_reads: list[PlateRead], frame: Frame):
             icon = "🚗"
             list_status = "Unknown"
 
-        with st.expander(
-            f"{icon} {plate.text_clean} ({list_status})",
-            expanded=(i == 0),
-        ):
+        with panel.container():
+            st.markdown(f"**{icon} {plate.text_clean}**  \nStatus: `{list_status}`")
+
             col1, col2 = st.columns([1, 2])
 
             with col1:
@@ -51,6 +52,8 @@ def render_plate_panel(plate_reads: list[PlateRead], frame: Frame):
                     # Convert BGR to RGB for display
                     plate_rgb = cv2.cvtColor(plate_crop, cv2.COLOR_BGR2RGB)
                     st.image(plate_rgb, caption="Detected Plate", use_container_width=True)
+                else:
+                    st.caption("No crop available")
 
             with col2:
                 # OCR results
@@ -78,18 +81,22 @@ def render_plate_panel(plate_reads: list[PlateRead], frame: Frame):
                 # Combined metrics
                 col_a, col_b = st.columns(2)
                 with col_a:
-                    st.metric("Detector Score", f"{plate.detection.score:.3f}")
+                    st.markdown("**Detector Score**")
+                    st.markdown(f"{plate.detection.score:.3f}")
                     bbox_size = plate.detection.bbox.width() * plate.detection.bbox.height()
-                    st.metric("Plate Size (px²)", f"{bbox_size}")
+                    st.markdown("**Plate Size (px²)**")
+                    st.markdown(f"{bbox_size}")
 
                 with col_b:
-                    st.metric("OCR Confidence", f"{plate.confidence:.1f}%")
+                    st.markdown("**OCR Confidence**")
+                    st.markdown(f"{plate.confidence:.1f}%")
                     aspect_ratio = (
                         plate.detection.bbox.width() / plate.detection.bbox.height()
                         if plate.detection.bbox.height() > 0
                         else 0
                     )
-                    st.metric("Aspect Ratio", f"{aspect_ratio:.2f}")
+                    st.markdown("**Aspect Ratio**")
+                    st.markdown(f"{aspect_ratio:.2f}")
 
                 st.divider()
 
@@ -105,9 +112,20 @@ def render_plate_panel(plate_reads: list[PlateRead], frame: Frame):
                 if plate.preprocessing_used:
                     st.caption(f"🔧 Preprocessing: {plate.preprocessing_used}")
 
-                # Track ID (for future multi-frame confirmation)
+                st.divider()
+
+                # Tracking info (multi-frame confirmation with OCR agreement)
                 if plate.detection.track_id is not None:
-                    st.caption(f"Track ID: {plate.detection.track_id}")
+                    st.info(
+                        f"🎯 **Tracked Detection** (ID: {plate.detection.track_id})\n\n"
+                        "This plate was confirmed across multiple consecutive frames with "
+                        "consistent OCR text, reducing false positives."
+                    )
+                else:
+                    st.caption("ℹ️ Single-frame detection (tracking disabled)")
+
+        if i < len(recent_reads) - 1:
+            panel.divider()
 
 
 def _extract_crop(image: np.ndarray, bbox) -> np.ndarray:

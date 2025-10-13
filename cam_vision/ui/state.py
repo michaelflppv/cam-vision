@@ -105,8 +105,17 @@ def init_session_state() -> None:
 
     if "ui_refresh_fps" not in st.session_state:
         st.session_state.ui_refresh_fps = (
-            5  # UI refresh rate (2-5 FPS recommended for smooth, non-glitchy display)
+            10  # UI refresh rate (higher for smoother video, but may cause page flashing)
         )
+    else:
+        try:
+            current = int(st.session_state.ui_refresh_fps)
+        except (TypeError, ValueError):
+            current = 10
+        st.session_state.ui_refresh_fps = max(1, min(10, current))
+
+    if "auto_refresh_enabled" not in st.session_state:
+        st.session_state.auto_refresh_enabled = True  # Enable auto-refresh by default
 
     if "frame_resize" not in st.session_state:
         st.session_state.frame_resize = None
@@ -129,12 +138,20 @@ def init_session_state() -> None:
     if "latest_face_matches" not in st.session_state:
         st.session_state.latest_face_matches = []
 
+    if "latest_face_observations" not in st.session_state:
+        st.session_state.latest_face_observations = []
+
     if "latest_plate_reads" not in st.session_state:
         st.session_state.latest_plate_reads = []
 
     # Legacy field for backwards compatibility
     if "latest_detections" not in st.session_state:
         st.session_state.latest_detections = []
+
+    if "latest_preview_image" not in st.session_state:
+        st.session_state.latest_preview_image = None
+    if "latest_detection_counts" not in st.session_state:
+        st.session_state.latest_detection_counts = {"known": 0, "unknown": 0, "plates": 0}
 
     if "capture_stats" not in st.session_state:
         st.session_state.capture_stats = {"fps": 0.0, "frame_count": 0}
@@ -145,6 +162,26 @@ def init_session_state() -> None:
 
     if "api_plate_events" not in st.session_state:
         st.session_state.api_plate_events = []
+
+    # Face recognition settings
+    if "face_similarity_threshold" not in st.session_state:
+        st.session_state.face_similarity_threshold = 0.35  # Default from config
+
+    # Tracking settings (multi-frame confirmation)
+    if "tracking_enabled" not in st.session_state:
+        st.session_state.tracking_enabled = True
+
+    if "tracking_frames_required" not in st.session_state:
+        st.session_state.tracking_frames_required = 3
+
+    if "tracking_iou_threshold" not in st.session_state:
+        st.session_state.tracking_iou_threshold = 0.5
+
+    if "tracking_max_age_frames" not in st.session_state:
+        st.session_state.tracking_max_age_frames = 30
+
+    if "tracking_ocr_agreement_threshold" not in st.session_state:
+        st.session_state.tracking_ocr_agreement_threshold = 0.6
 
 
 def save_preset(name: str, params: dict) -> None:
