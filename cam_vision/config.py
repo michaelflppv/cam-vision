@@ -121,8 +121,16 @@ class PlateOCRSettings(BaseModel):
     """Tesseract OCR configuration with preprocessing pipeline."""
 
     # Tesseract configuration
-    tesseract_lang: str = Field("eng", description="Tesseract language (eng, deu, fra, etc.)")
-    psm_mode: int = Field(7, ge=0, le=13, description="Page segmentation mode (7=line, 8=word)")
+    tesseract_lang: str = Field(
+        "eng+rus",
+        description="Tesseract language (multi-language allowed, e.g., 'eng+rus' for EU/Cyrillic plates)",
+    )
+    psm_mode: int = Field(
+        7,
+        ge=0,
+        le=13,
+        description="Page segmentation mode (7=line, optimal for single-line plates)",
+    )
     oem_mode: int = Field(3, ge=0, le=3, description="OCR Engine mode (3=default, 1=LSTM)")
     char_whitelist: str = Field(
         "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789- ",
@@ -161,8 +169,8 @@ class PlatePostProcessSettings(BaseModel):
     """Post-processing and validation for recognized plate text."""
 
     regex: str = Field(
-        "[A-Z0-9-]{4,10}",
-        description="Regex pattern for valid plate format (applied after cleaning)",
+        "[A-Z0-9\\u0410-\\u042F\\u0401-]{4,10}",
+        description="Regex pattern for valid plate format (supports Latin + Cyrillic uppercase, applied after cleaning)",
     )
     uppercase: bool = Field(True, description="Convert text to uppercase before regex")
     min_length: int = Field(4, ge=1, description="Minimum plate text length")
