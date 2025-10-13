@@ -5,6 +5,25 @@ from typing import Any, Literal, Optional
 
 
 @dataclass(frozen=True)
+class FaceObservation:
+    """Face detection observation for UI overlays."""
+
+    detection: "Detection"
+    person_id: Optional[str] = None
+    similarity: Optional[float] = None
+    matched: bool = False
+
+    @property
+    def label(self) -> str:
+        """Human-readable label for overlays."""
+        if self.matched and self.person_id:
+            if self.similarity is not None:
+                return f"{self.person_id} ({self.similarity:.2f})"
+            return self.person_id
+        return "Unknown face"
+
+
+@dataclass(frozen=True)
 class Frame:
     """Raw frame container used by the pipeline."""
 

@@ -203,6 +203,60 @@ class EventsSettings(BaseModel):
     retention_days: int = 30
 
 
+class TrackingSettings(BaseModel):
+    """
+    Multi-frame tracking and confirmation settings (PR8).
+
+    These settings control the tracking-based confirmation logic that reduces
+    false positives by requiring multiple consecutive frame detections before
+    emitting events.
+
+    Environment examples:
+      SECUREVISION__TRACKING__ENABLED=true
+      SECUREVISION__TRACKING__FRAMES_REQUIRED=3
+      SECUREVISION__TRACKING__IOU_THRESHOLD=0.5
+      SECUREVISION__TRACKING__COOLDOWN_SECONDS=30
+    """
+
+    enabled: bool = Field(
+        True,
+        description="Enable tracking and multi-frame confirmation",
+    )
+    frames_required: int = Field(
+        3,
+        ge=1,
+        le=10,
+        description="Consecutive frames required for track confirmation (K)",
+    )
+    frames_window: int = Field(
+        5,
+        ge=1,
+        description="Frame window for tracking (M frames to look back)",
+    )
+    iou_threshold: float = Field(
+        0.5,
+        ge=0.0,
+        le=1.0,
+        description="Minimum IoU for bbox matching across frames",
+    )
+    max_age_frames: int = Field(
+        30,
+        ge=1,
+        description="Maximum frames without match before track removal",
+    )
+    ocr_agreement_threshold: float = Field(
+        0.6,
+        ge=0.0,
+        le=1.0,
+        description="Minimum OCR text agreement ratio for plate confirmation",
+    )
+    cooldown_seconds: float = Field(
+        30.0,
+        ge=0.0,
+        description="Cooldown period between duplicate events (same person/plate)",
+    )
+
+
 class APISettings(BaseModel):
     host: str = "0.0.0.0"
     port: int = 8000
@@ -231,6 +285,7 @@ class AppSettings(BaseSettings):
     face: FaceSettings = Field(default_factory=FaceSettings)
     plates: PlatesSettings = Field(default_factory=PlatesSettings)
     events: EventsSettings = Field(default_factory=EventsSettings)
+    tracking: TrackingSettings = Field(default_factory=TrackingSettings)
     api: APISettings = Field(default_factory=APISettings)
 
 
