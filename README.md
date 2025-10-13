@@ -213,8 +213,9 @@ See [`examples/env/alpr-basic.env`](examples/env/alpr-basic.env) for full settin
 ### European & Russian Plates
 
 - Accented Latin and Cyrillic characters are normalised automatically so EU/RU formats survive OCR cleanup.
-- For Cyrillic text, install the `rus` language pack for Tesseract (e.g. `brew install tesseract-lang` on macOS) and optionally set `SECUREVISION__PLATES__OCR__TESSERACT_LANG=eng+rus`.
-- The dashboard and preview CLI now surface low-confidence plate reads alongside confirmed matches, making it easier to tune thresholds and spot unrecognised plates.
+- Tesseract now defaults to `eng+rus`; install the `rus` language pack (e.g. `brew install tesseract-lang` on macOS) so bilingual OCR works out of the box.
+- Post-processing regex accepts Latin + Cyrillic uppercase plus digits and hyphen, reducing false positives from regional glyphs.
+- The dashboard and preview CLI surface low-confidence plate reads alongside confirmed matches, making it easier to tune thresholds and spot unrecognised plates.
 
 **Regional Plate Format Examples:**
 - US plates: `SECUREVISION__PLATES__POSTPROCESS__REGEX="[A-Z0-9]{6,7}"`
@@ -419,7 +420,7 @@ poetry run securevision-preview --source-type device --device 0 --backend AVFOUN
 - Frame resize options (640×480, 800×600, 1280×720)
 
 **Real-Time OCR Tuning:**
-- PSM mode selection (7=line, 6=block, 3=auto, etc.)
+- PSM mode selection (default 7 = single-line plate, 6=block, 3=auto)
 - Character whitelist customization
 - Preprocessing pipeline (grayscale, bilateral, adaptive threshold, CLAHE)
 - Image upscale factor (1x/2x/3x for small plates)
