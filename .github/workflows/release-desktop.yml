@@ -1,0 +1,101 @@
+name: Release Desktop Apps
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest, macos-latest]
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+
+      - name: Install Poetry
+        uses: snok/install-poetry@v1
+        with:
+          version: "1.8.3"
+
+      - name: Install dependencies
+        run: poetry install --with dev
+
+      - name: Prepare tesseract (Linux)
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y tesseract-ocr
+          mkdir -p build/tesseract/bin build/tesseract/lib build/tesseract/share
+          TESSERACT_BIN="$(which tesseract)"
+          cp "$TESSERACT_BIN" build/tesseract/bin/
+          TESSDATA_DIR="$(tesseract --print-tessdata-dir)"
+          cp -R "$TESSDATA_DIR" build/tesseract/share/tessdata
+          ldd "$TESSERACT_BIN" | awk '/=>/ {print $3}' | grep -E '^/' | xargs -I{} cp -v {} build/tesseract/lib/
+          echo "SECUREVISION_TESSERACT_DIR=${GITHUB_WORKSPACE}/build/tesseract" >> "$GITHUB_ENV"
+
+      - name: Prepare tesseract (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          brew install tesseract
+          PREFIX="$(brew --prefix tesseract)"
+          mkdir -p build/tesseract/bin build/tesseract/lib build/tesseract/share
+          cp "$PREFIX/bin/tesseract" build/tesseract/bin/
+          cp -R "$PREFIX/share/tessdata" build/tesseract/share/tessdata
+          cp -R "$PREFIX/lib" build/tesseract/
+          echo "SECUREVISION_TESSERACT_DIR=${GITHUB_WORKSPACE}/build/tesseract" >> "$GITHUB_ENV"
+
+      - name: Prepare tesseract (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          choco install tesseract -y
+          New-Item -ItemType Directory -Path build\\tesseract | Out-Null
+          Copy-Item "C:\\Program Files\\Tesseract-OCR\\*" -Destination build\\tesseract -Recurse
+          "SECUREVISION_TESSERACT_DIR=$env:GITHUB_WORKSPACE\\build\\tesseract" | Out-File -FilePath $env:GITHUB_ENV -Append
+
+      - name: Prepare InsightFace models
+        run: |
+          mkdir -p build/insightface
+          echo "SECUREVISION_INSIGHTFACE_DIR=${GITHUB_WORKSPACE}/build/insightface" >> "$GITHUB_ENV"
+          SECUREVISION_INSIGHTFACE_DIR="${GITHUB_WORKSPACE}/build/insightface" \
+            poetry run python scripts/prepare_insightface_models.py
+
+      - name: Build app
+        env:
+          SECUREVISION_TESSERACT_DIR: ${{ env.SECUREVISION_TESSERACT_DIR }}
+          SECUREVISION_INSIGHTFACE_DIR: ${{ env.SECUREVISION_INSIGHTFACE_DIR }}
+        run: poetry run pyinstaller packaging/securevision_desktop.spec --noconfirm --clean
+
+      - name: Package artifact (Linux/macOS)
+        if: runner.os != 'Windows'
+        run: |
+          cd dist
+          zip -r "SecureVision-${{ runner.os }}.zip" "SecureVision"
+          mv "SecureVision-${{ runner.os }}.zip" ..
+
+      - name: Package artifact (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          Compress-Archive -Path dist\\SecureVision -DestinationPath SecureVision-Windows.zip
+
+      - name: Publish Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            SecureVision-${{ runner.os }}.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
