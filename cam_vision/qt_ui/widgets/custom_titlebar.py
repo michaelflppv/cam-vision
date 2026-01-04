@@ -28,9 +28,14 @@ class MacOSButton(QPushButton):
 
         # Set colors based on role
         self.colors = {
-            "close": "#FF5F57",
-            "minimize": "#FFBD2E",
-            "maximize": "#28C840",
+            "close": tokens.TITLEBAR_CLOSE_BG,
+            "minimize": tokens.TITLEBAR_MINIMIZE_BG,
+            "maximize": tokens.TITLEBAR_MAXIMIZE_BG,
+        }
+        self.hover_colors = {
+            "close": tokens.TITLEBAR_CLOSE_HOVER_BG,
+            "minimize": tokens.TITLEBAR_MINIMIZE_HOVER_BG,
+            "maximize": tokens.TITLEBAR_MAXIMIZE_HOVER_BG,
         }
         self.symbols = {
             "close": "×",
@@ -43,9 +48,9 @@ class MacOSButton(QPushButton):
             f"""
             QPushButton {{
                 background-color: {self.colors[role]};
-                border: 0.5px solid rgba(0, 0, 0, 0.15);
+                border: 0.5px solid {tokens.TITLEBAR_BUTTON_BORDER};
                 border-radius: {radius}px;
-                color: rgba(0, 0, 0, 0.7);
+                color: {tokens.TITLEBAR_BUTTON_SYMBOL};
                 font-size: 11px;
                 font-weight: bold;
                 min-width: {tokens.TITLEBAR_BUTTON_SIZE}px;
@@ -55,7 +60,7 @@ class MacOSButton(QPushButton):
                 padding: 0px;
             }}
             QPushButton:hover {{
-                background-color: {self.colors[role]};
+                background-color: {self.hover_colors[role]};
             }}
             """
         )

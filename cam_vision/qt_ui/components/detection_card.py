@@ -128,7 +128,8 @@ class DetectionCard(QWidget):
             label.setPixmap(pixmap)
             label.setFixedSize(self._thumbnail_size, self._thumbnail_size)
             label.setStyleSheet(
-                f"border: 1px solid {tokens.BORDER_UNFOCUSED}; " "background-color: #000000;"
+                f"border: 1px solid {tokens.BORDER_UNFOCUSED}; "
+                f"background-color: {tokens.THUMBNAIL_BACKGROUND};"
             )
 
             return label
@@ -173,7 +174,7 @@ class FaceMatchCard(DetectionCard):
         secondary = " • ".join(secondary_parts) if secondary_parts else ""
 
         # Choose border color (green for match, amber for unknown)
-        border_color = "#00FF00" if face_observation.matched else "#FFA500"
+        border_color = tokens.ACCENT_SUCCESS if face_observation.matched else tokens.ACCENT_WARNING
 
         super().__init__(
             image=cropped_face,
@@ -216,13 +217,13 @@ class PlateDetectionCard(DetectionCard):
 
         # Choose border color based on status
         if plate_observation.matched_list == "whitelist":
-            border_color = "#00FF00"  # Green
+            border_color = tokens.ACCENT_SUCCESS
         elif plate_observation.matched_list == "blacklist":
-            border_color = "#FF0000"  # Red
+            border_color = tokens.ACCENT_ERROR
         elif plate_observation.status == "ocr_low_confidence":
-            border_color = "#FFA500"  # Amber
+            border_color = tokens.ACCENT_WARNING
         else:
-            border_color = "#0000FF"  # Blue
+            border_color = tokens.ACCENT_INFO
 
         super().__init__(
             image=cropped_plate,

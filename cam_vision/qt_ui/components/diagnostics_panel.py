@@ -137,8 +137,7 @@ class DiagnosticsPanel(QWidget):
             error_label = QLabel(f"Error running diagnostics:\n{str(e)}")
             error_label.setWordWrap(True)
             error_label.setStyleSheet(
-                f"color: #FF0000; "  # Red for errors
-                f"font-size: {tokens.FONT_SIZE_NORMAL}px;"
+                f"color: {tokens.ACCENT_ERROR}; " f"font-size: {tokens.FONT_SIZE_NORMAL}px;"
             )
             self.results_layout.addWidget(error_label)
 
@@ -160,12 +159,12 @@ class DiagnosticsPanel(QWidget):
         if all_ok:
             status_icon = "✓"
             status_text = "All Systems Operational"
-            status_color = "#00AA00"  # Green
+            status_color = tokens.ACCENT_SUCCESS
         else:
             status_icon = "✗"
             failures = len(diagnostics.get_failures())
             status_text = f"{failures} Issue(s) Detected"
-            status_color = "#FF0000"  # Red
+            status_color = tokens.ACCENT_ERROR
 
         overall_label = QLabel(f"{status_icon} {status_text}")
         overall_label.setStyleSheet(
@@ -219,10 +218,10 @@ class DiagnosticsPanel(QWidget):
             color = tokens.TEXT_SECONDARY
         elif feature.available:
             icon = "✓"  # OK
-            color = "#00AA00"  # Green
+            color = tokens.ACCENT_SUCCESS
         else:
             icon = "✗"  # Error
-            color = "#FF0000"  # Red
+            color = tokens.ACCENT_ERROR
 
         name_label = QLabel(f"{icon} {feature.name}")
         name_label.setStyleSheet(
@@ -243,7 +242,9 @@ class DiagnosticsPanel(QWidget):
         if feature.error:
             error_label = QLabel(f"Error: {feature.error}")
             error_label.setWordWrap(True)
-            error_label.setStyleSheet(f"color: #FF0000; " f"font-size: {tokens.FONT_SIZE_SMALL}px;")
+            error_label.setStyleSheet(
+                f"color: {tokens.ACCENT_ERROR}; " f"font-size: {tokens.FONT_SIZE_SMALL}px;"
+            )
             layout.addWidget(error_label)
 
         return widget

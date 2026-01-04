@@ -1,47 +1,172 @@
 """Design tokens for the strict monochromatic Qt UI.
 
-All visual design constants are centralized here to enforce consistency:
-- Pure white background (#FFFFFF)
-- Absolute black for primary actions (#000000)
-- Subtle gray for unfocused states (#E0E0E0)
-- Zero border-radius on ALL elements
-- Generous padding and spacing
+All visual design constants are centralized here to enforce consistency.
+Color tokens can be swapped to support light/dark themes while preserving
+the monochromatic design system.
 """
 
+from __future__ import annotations
+
+from typing import Dict, Iterable
+
 # ============================================================================
-# Color Palette - Monochromatic Only
+# Color Palette - Monochromatic Only (Theme Aware)
 # ============================================================================
 
-# Backgrounds
-BACKGROUND_PRIMARY = "#FFFFFF"  # Pure white - main background
-BACKGROUND_SUBTLE = "#F5F5F5"  # Subtle gray - for cards and secondary surfaces
-BACKGROUND_HOVER = "#F5F5F5"  # Light gray hover state
+_COLOR_TOKEN_NAMES: Iterable[str] = (
+    "BACKGROUND_PRIMARY",
+    "BACKGROUND_SUBTLE",
+    "BACKGROUND_HOVER",
+    "BACKGROUND_WINDOW_GRADIENT_END",
+    "BACKGROUND_SIDEBAR_GRADIENT_END",
+    "BACKGROUND_CONTENT_GRADIENT_END",
+    "TEXT_PRIMARY",
+    "TEXT_SECONDARY",
+    "TEXT_TERTIARY",
+    "TEXT_INVERTED",
+    "BORDER_UNFOCUSED",
+    "BORDER_FOCUSED",
+    "BORDER_DIVIDER",
+    "ACCENT_PRIMARY",
+    "ACCENT_PRIMARY_HOVER",
+    "ACCENT_PRIMARY_PRESSED",
+    "ACCENT_SUCCESS",
+    "ACCENT_WARNING",
+    "ACCENT_ERROR",
+    "ACCENT_INFO",
+    "ACCENT_NEUTRAL",
+    "CLOSE_BUTTON_HOVER",
+    "TOOLTIP_BACKGROUND",
+    "TOOLTIP_TEXT",
+    "TITLEBAR_CLOSE_BG",
+    "TITLEBAR_CLOSE_BORDER",
+    "TITLEBAR_MINIMIZE_BG",
+    "TITLEBAR_MINIMIZE_BORDER",
+    "TITLEBAR_MAXIMIZE_BG",
+    "TITLEBAR_MAXIMIZE_BORDER",
+    "TITLEBAR_CLOSE_HOVER_BG",
+    "TITLEBAR_MINIMIZE_HOVER_BG",
+    "TITLEBAR_MAXIMIZE_HOVER_BG",
+    "TITLEBAR_BUTTON_BORDER",
+    "TITLEBAR_BUTTON_SYMBOL",
+    "THUMBNAIL_BACKGROUND",
+)
 
-# Text
-TEXT_PRIMARY = "#000000"  # Absolute black - primary text and headings
-TEXT_SECONDARY = "#888888"  # Medium gray - secondary text and labels
-TEXT_TERTIARY = "#AAAAAA"  # Light gray - disabled or tertiary text
-TEXT_INVERTED = "#FFFFFF"  # White text on dark backgrounds
+_LIGHT_THEME: Dict[str, str] = {
+    # Backgrounds
+    "BACKGROUND_PRIMARY": "#FFFFFF",
+    "BACKGROUND_SUBTLE": "#F5F5F5",
+    "BACKGROUND_HOVER": "#F5F5F5",
+    "BACKGROUND_WINDOW_GRADIENT_END": "#F2F2F2",
+    "BACKGROUND_SIDEBAR_GRADIENT_END": "#F6F6F6",
+    "BACKGROUND_CONTENT_GRADIENT_END": "#F7F7F7",
+    # Text
+    "TEXT_PRIMARY": "#000000",
+    "TEXT_SECONDARY": "#888888",
+    "TEXT_TERTIARY": "#AAAAAA",
+    "TEXT_INVERTED": "#FFFFFF",
+    # Borders
+    "BORDER_UNFOCUSED": "#E0E0E0",
+    "BORDER_FOCUSED": "#000000",
+    "BORDER_DIVIDER": "#E0E0E0",
+    # Primary Actions
+    "ACCENT_PRIMARY": "#000000",
+    "ACCENT_PRIMARY_HOVER": "#333333",
+    "ACCENT_PRIMARY_PRESSED": "#666666",
+    # Status Colors
+    "ACCENT_SUCCESS": "#00CC00",
+    "ACCENT_WARNING": "#FFA500",
+    "ACCENT_ERROR": "#FF0000",
+    "ACCENT_INFO": "#0066CC",
+    "ACCENT_NEUTRAL": "#888888",
+    # Special
+    "CLOSE_BUTTON_HOVER": "#FF0000",
+    "TOOLTIP_BACKGROUND": "#000000",
+    "TOOLTIP_TEXT": "#FFFFFF",
+    # Title bar controls (macOS)
+    "TITLEBAR_CLOSE_BG": "#FF5F57",
+    "TITLEBAR_CLOSE_BORDER": "#E0443E",
+    "TITLEBAR_MINIMIZE_BG": "#FFBD2E",
+    "TITLEBAR_MINIMIZE_BORDER": "#DEA123",
+    "TITLEBAR_MAXIMIZE_BG": "#28C940",
+    "TITLEBAR_MAXIMIZE_BORDER": "#1BAC2E",
+    "TITLEBAR_CLOSE_HOVER_BG": "#FF3B30",
+    "TITLEBAR_MINIMIZE_HOVER_BG": "#FFB000",
+    "TITLEBAR_MAXIMIZE_HOVER_BG": "#20B53A",
+    "TITLEBAR_BUTTON_BORDER": "rgba(0, 0, 0, 0.15)",
+    "TITLEBAR_BUTTON_SYMBOL": "rgba(0, 0, 0, 0.7)",
+    # Thumbnails
+    "THUMBNAIL_BACKGROUND": "#000000",
+}
 
-# Borders
-BORDER_UNFOCUSED = "#E0E0E0"  # Light gray - unfocused input borders
-BORDER_FOCUSED = "#000000"  # Black - focused input borders
-BORDER_DIVIDER = "#E0E0E0"  # Light gray - section dividers
+_DARK_THEME: Dict[str, str] = {
+    # Backgrounds
+    "BACKGROUND_PRIMARY": "#0F0F0F",
+    "BACKGROUND_SUBTLE": "#1A1A1A",
+    "BACKGROUND_HOVER": "#222222",
+    "BACKGROUND_WINDOW_GRADIENT_END": "#141414",
+    "BACKGROUND_SIDEBAR_GRADIENT_END": "#161616",
+    "BACKGROUND_CONTENT_GRADIENT_END": "#181818",
+    # Text
+    "TEXT_PRIMARY": "#F5F5F5",
+    "TEXT_SECONDARY": "#B0B0B0",
+    "TEXT_TERTIARY": "#888888",
+    "TEXT_INVERTED": "#0F0F0F",
+    # Borders
+    "BORDER_UNFOCUSED": "#2A2A2A",
+    "BORDER_FOCUSED": "#F5F5F5",
+    "BORDER_DIVIDER": "#2A2A2A",
+    # Primary Actions
+    "ACCENT_PRIMARY": "#F5F5F5",
+    "ACCENT_PRIMARY_HOVER": "#FFFFFF",
+    "ACCENT_PRIMARY_PRESSED": "#D6D6D6",
+    # Status Colors
+    "ACCENT_SUCCESS": "#2EDC6E",
+    "ACCENT_WARNING": "#FFB347",
+    "ACCENT_ERROR": "#FF5C5C",
+    "ACCENT_INFO": "#4DA3FF",
+    "ACCENT_NEUTRAL": "#B0B0B0",
+    # Special
+    "CLOSE_BUTTON_HOVER": "#FF5C5C",
+    "TOOLTIP_BACKGROUND": "#F5F5F5",
+    "TOOLTIP_TEXT": "#111111",
+    # Title bar controls (macOS)
+    "TITLEBAR_CLOSE_BG": "#FF5F57",
+    "TITLEBAR_CLOSE_BORDER": "#E0443E",
+    "TITLEBAR_MINIMIZE_BG": "#FFBD2E",
+    "TITLEBAR_MINIMIZE_BORDER": "#DEA123",
+    "TITLEBAR_MAXIMIZE_BG": "#28C940",
+    "TITLEBAR_MAXIMIZE_BORDER": "#1BAC2E",
+    "TITLEBAR_CLOSE_HOVER_BG": "#FF3B30",
+    "TITLEBAR_MINIMIZE_HOVER_BG": "#FFB000",
+    "TITLEBAR_MAXIMIZE_HOVER_BG": "#20B53A",
+    "TITLEBAR_BUTTON_BORDER": "rgba(255, 255, 255, 0.2)",
+    "TITLEBAR_BUTTON_SYMBOL": "rgba(0, 0, 0, 0.75)",
+    # Thumbnails
+    "THUMBNAIL_BACKGROUND": "#000000",
+}
 
-# Primary Actions
-ACCENT_PRIMARY = "#000000"  # Absolute black - primary action buttons
-ACCENT_PRIMARY_HOVER = "#333333"  # Dark gray - primary hover state
-ACCENT_PRIMARY_PRESSED = "#666666"  # Medium gray - primary pressed state
 
-# Status Colors (minimal color for indicators only)
-ACCENT_SUCCESS = "#00CC00"  # Green - success states
-ACCENT_WARNING = "#FFA500"  # Amber - warning states
-ACCENT_ERROR = "#FF0000"  # Red - error states
-ACCENT_INFO = "#0066CC"  # Blue - informational states
-ACCENT_NEUTRAL = "#888888"  # Gray - neutral states
+def apply_theme(theme: str) -> str:
+    """Apply the selected color theme to module-level tokens."""
+    palette_name = theme.lower()
+    if palette_name == "dark":
+        palette = _DARK_THEME
+    else:
+        palette_name = "light"
+        palette = _LIGHT_THEME
 
-# Special
-CLOSE_BUTTON_HOVER = "#FF0000"  # Red - close button hover (only exception)
+    globals().update(palette)
+    return palette_name
+
+
+def get_color_tokens() -> Dict[str, str]:
+    """Return the current theme color tokens for QSS templating."""
+    return {token: globals()[token] for token in _COLOR_TOKEN_NAMES}
+
+
+# Initialize with the light theme by default.
+apply_theme("light")
 
 # ============================================================================
 # Typography - System Fonts Only

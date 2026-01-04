@@ -16,13 +16,15 @@ from PySide6.QtWidgets import QApplication
 from ..qt_ui.main_window import SecureVisionMainWindow
 from ..qt_ui.styles import load_stylesheet
 from ..qt_ui.styles.fonts import get_system_font_name
+from ..qt_ui.styles.theme import apply_theme
 from ..qt_ui.styles.tokens import FONT_SIZE_NORMAL
 
 
-def main():
+def launch(app: QApplication | None = None) -> int:
     """Launch the Qt dashboard application."""
-    # Create application
-    app = QApplication(sys.argv)
+    owns_app = app is None
+    if app is None:
+        app = QApplication(sys.argv)
 
     # Set application metadata
     app.setApplicationName("SecureVision")
@@ -33,6 +35,9 @@ def main():
     font = QFont(get_system_font_name(), FONT_SIZE_NORMAL)
     app.setFont(font)
 
+    # Resolve and apply theme before loading styles
+    apply_theme(app)
+
     # Load and apply global stylesheet
     stylesheet = load_stylesheet()
     app.setStyleSheet(stylesheet)
@@ -41,8 +46,14 @@ def main():
     window = SecureVisionMainWindow()
     window.show()
 
-    # Run event loop
-    sys.exit(app.exec())
+    if owns_app:
+        return app.exec()
+    return 0
+
+
+def main():
+    """Launch the Qt dashboard application."""
+    sys.exit(launch())
 
 
 if __name__ == "__main__":

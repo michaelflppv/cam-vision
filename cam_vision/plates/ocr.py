@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import logging
+import os
 import re
 from dataclasses import dataclass
 from typing import Dict, Tuple
@@ -104,6 +105,10 @@ class TesseractOCR:
         """Check if pytesseract is available."""
         try:
             import pytesseract
+
+            tesseract_cmd = os.getenv("SECUREVISION__TESSERACT_CMD")
+            if tesseract_cmd:
+                pytesseract.pytesseract.tesseract_cmd = tesseract_cmd
 
             self._pytesseract = pytesseract
         except ImportError as e:
