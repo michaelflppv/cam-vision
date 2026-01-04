@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Launch a lightweight SecureVision preview window without Streamlit."""
+"""Launch a lightweight SecureVision preview window without the desktop UI."""
 
 from __future__ import annotations
 
@@ -254,7 +254,7 @@ class PreviewRunner:
         return exit_code
 
     def _draw_overlay(self, image, stats: dict, frame_result) -> None:
-        """Render status text overlays similar to the Streamlit dashboard."""
+        """Render status text overlays similar to the desktop dashboard."""
         known_faces = sum(1 for obs in frame_result.face_observations if obs.matched)
         total_faces = len(frame_result.face_observations)
         unknown_faces = total_faces - known_faces

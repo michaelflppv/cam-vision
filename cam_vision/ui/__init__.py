@@ -1,3 +1,3 @@
-"""Streamlit-based dashboard for SecureVision."""
+"""Shared UI utilities for SecureVision."""
 
 __all__ = []

@@ -1,4 +1,4 @@
-.PHONY: help install test lint format api ui qt streamlit run-all clean kill-api
+.PHONY: help install test lint format api qt run-all clean kill-api
 
 # Default target
 help:
@@ -12,7 +12,6 @@ help:
 	@echo "Running Services:"
 	@echo "  make api              Start API server (port 8000)"
 	@echo "  make qt               Start Qt dashboard (monochromatic UI)"
-	@echo "  make streamlit        Start Streamlit dashboard (legacy)"
 	@echo "  make run-all          Start API + Qt UI together"
 	@echo ""
 	@echo "Development:"
@@ -49,10 +48,6 @@ api:
 qt:
 	@echo "Starting SecureVision Qt Dashboard (Monochromatic UI)"
 	@poetry run securevision-qt
-
-streamlit:
-	@echo "Starting SecureVision Streamlit Dashboard (Legacy)"
-	@poetry run securevision-ui
 
 # Run API and Qt UI together
 run-all:
@@ -157,4 +152,4 @@ docker-build:
 
 docker-run:
 	@echo "Running Docker container..."
-	@docker run -p 8000:8000 -p 8501:8501 securevision:latest
+	@docker run -p 8000:8000 securevision:latest

@@ -7,9 +7,29 @@ monochromatic design.
 import logging
 
 from PySide6.QtCore import Qt
-from PySide6.QtWidgets import QHBoxLayout, QMainWindow, QSizeGrip, QSizePolicy, QVBoxLayout, QWidget
+from PySide6.QtWidgets import (
+    QFrame,
+    QHBoxLayout,
+    QMainWindow,
+    QScrollArea,
+    QSizeGrip,
+    QSizePolicy,
+    QStackedWidget,
+    QVBoxLayout,
+    QWidget,
+)
 
-from .components import ControlsSidebar, FaceMatchesPanel, PlateDetectionsPanel, PreviewPanel
+from .components import (
+    ControlsSidebar,
+    DiagnosticsPanel,
+    EnrollmentControls,
+    FaceControls,
+    FaceMatchesPanel,
+    PlateDetectionsPanel,
+    PreviewPanel,
+    TrackingControls,
+    VideoSettings,
+)
 from .state import AppState
 from .styles import tokens
 from .widgets.custom_titlebar import CustomTitleBar
@@ -85,7 +105,7 @@ class SecureVisionMainWindow(QMainWindow):
         self.sidebar = self._create_sidebar()
         content_layout.addWidget(self.sidebar)
 
-        # Main content area (horizontal: preview + detection panels)
+        # Main content area (stacked pages)
         self.content_area = self._create_content_area()
         self.content_area.setObjectName("contentArea")
         content_layout.addWidget(self.content_area, 1)
@@ -114,7 +134,43 @@ class SecureVisionMainWindow(QMainWindow):
         content = QWidget()
         content.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
 
-        layout = QHBoxLayout(content)
+        layout = QVBoxLayout(content)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        self.page_stack = QStackedWidget()
+        self.page_stack.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        live_page = self._create_live_page()
+        self.page_stack.addWidget(live_page)
+
+        self.video_settings = VideoSettings()
+        self.page_stack.addWidget(self._wrap_control_page(self.video_settings))
+
+        self.face_controls = FaceControls()
+        self.page_stack.addWidget(self._wrap_control_page(self.face_controls))
+
+        self.tracking_controls = TrackingControls()
+        self.page_stack.addWidget(self._wrap_control_page(self.tracking_controls))
+
+        self.diagnostics_panel = DiagnosticsPanel()
+        self.page_stack.addWidget(self._wrap_control_page(self.diagnostics_panel))
+
+        self.enrollment_controls = EnrollmentControls()
+        self.page_stack.addWidget(self._wrap_control_page(self.enrollment_controls))
+
+        layout.addWidget(self.page_stack, 1)
+
+        content.setMinimumSize(live_page.minimumSizeHint())
+
+        return content
+
+    def _create_live_page(self) -> QWidget:
+        """Create the live preview page."""
+        page = QWidget()
+        page.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        layout = QHBoxLayout(page)
         layout.setContentsMargins(
             tokens.PADDING_LARGE,
             tokens.PADDING_LARGE,
@@ -146,7 +202,38 @@ class SecureVisionMainWindow(QMainWindow):
 
         layout.addWidget(detection_container, 1)
 
-        return content
+        return page
+
+    def _wrap_control_page(self, widget: QWidget) -> QWidget:
+        """Wrap a control widget in a scrollable page."""
+        page = QWidget()
+        page.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        layout = QVBoxLayout(page)
+        layout.setContentsMargins(
+            tokens.PADDING_LARGE,
+            tokens.PADDING_LARGE,
+            tokens.PADDING_LARGE,
+            tokens.PADDING_LARGE,
+        )
+        layout.setSpacing(tokens.SPACING_COMFORTABLE)
+
+        scroll = QScrollArea()
+        scroll.setWidgetResizable(True)
+        scroll.setFrameShape(QFrame.NoFrame)
+        scroll.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+
+        container = QWidget()
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(0, 0, 0, 0)
+        container_layout.setSpacing(tokens.SPACING_COMFORTABLE)
+        container_layout.addWidget(widget)
+        container_layout.addStretch()
+
+        scroll.setWidget(container)
+        layout.addWidget(scroll, 1)
+
+        return page
 
     def _apply_window_sizing(self):
         """Set window sizing defaults and minimum bounds."""
@@ -186,14 +273,31 @@ class SecureVisionMainWindow(QMainWindow):
         self.controls_sidebar.connect_clicked.connect(self._on_connect_clicked)
         self.controls_sidebar.disconnect_clicked.connect(self._on_disconnect_clicked)
         self.controls_sidebar.source_changed.connect(self._on_source_changed)
-        self.controls_sidebar.fps_changed.connect(self._on_fps_changed)
-        self.controls_sidebar.resize_changed.connect(self._on_resize_changed)
-        self.controls_sidebar.face_threshold_changed.connect(self._on_face_threshold_changed)
-        self.controls_sidebar.tracking_enabled_changed.connect(self._on_tracking_enabled_changed)
-        self.controls_sidebar.tracking_params_changed.connect(self._on_tracking_params_changed)
+
+        # Settings page signals
+        self.video_settings.fps_changed.connect(self._on_fps_changed)
+        self.video_settings.resize_changed.connect(self._on_resize_changed)
+        self.face_controls.threshold_changed.connect(self._on_face_threshold_changed)
+        self.tracking_controls.tracking_enabled_changed.connect(self._on_tracking_enabled_changed)
+        self.tracking_controls.frames_required_changed.connect(self._emit_tracking_params)
+        self.tracking_controls.iou_threshold_changed.connect(self._emit_tracking_params)
+        self.tracking_controls.max_age_changed.connect(self._emit_tracking_params)
+        self.tracking_controls.ocr_agreement_changed.connect(self._emit_tracking_params)
 
         # State signals
         self.state.connected_changed.connect(self._on_connection_state_changed)
+
+        # Title bar navigation
+        nav_labels = [
+            "Live",
+            "Video",
+            "Face",
+            "Tracking",
+            "Diagnostics",
+            "Accepted Lists",
+        ]
+        self.title_bar.set_navigation_tabs(nav_labels)
+        self.title_bar.navigation_changed.connect(self._on_navigation_changed)
 
     def _on_connect_clicked(self):
         """Handle Connect button click."""
@@ -226,11 +330,11 @@ class SecureVisionMainWindow(QMainWindow):
         # Configure worker with settings from sidebar
         self.capture_worker.configure(
             source_config=source_config,
-            fps_target=self.controls_sidebar.get_fps_target(),
-            frame_resize=self.controls_sidebar.get_resize(),
-            face_similarity_threshold=self.controls_sidebar.get_face_threshold(),
-            tracking_enabled=self.controls_sidebar.is_tracking_enabled(),
-            **self.controls_sidebar.get_tracking_params(),
+            fps_target=self.video_settings.get_fps_target(),
+            frame_resize=self.video_settings.get_resize(),
+            face_similarity_threshold=self.face_controls.get_threshold(),
+            tracking_enabled=self.tracking_controls.is_tracking_enabled(),
+            **self._get_tracking_params(),
         )
 
         # Start worker
@@ -382,6 +486,24 @@ class SecureVisionMainWindow(QMainWindow):
         """
         logger.info(f"Tracking params changed: {params}")
         self.state.set_tracking_params(params)
+
+    def _emit_tracking_params(self):
+        """Collect tracking params from controls and emit state update."""
+        params = self._get_tracking_params()
+        self._on_tracking_params_changed(params)
+
+    def _get_tracking_params(self) -> dict:
+        """Get current tracking parameters."""
+        return {
+            "frames_required": self.tracking_controls.get_frames_required(),
+            "iou_threshold": self.tracking_controls.get_iou_threshold(),
+            "max_age_frames": self.tracking_controls.get_max_age(),
+            "ocr_agreement_threshold": self.tracking_controls.get_ocr_agreement_threshold(),
+        }
+
+    def _on_navigation_changed(self, index: int):
+        """Switch content pages based on title bar navigation."""
+        self.page_stack.setCurrentIndex(index)
 
     def _toggle_maximize(self):
         """Toggle between maximized and normal window state."""

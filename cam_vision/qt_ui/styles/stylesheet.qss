@@ -640,6 +640,28 @@ QLabel#titleBarLabel {
     padding-left: 8px;
 }
 
+QTabBar#titleBarTabs {
+    background-color: #FFFFFF;
+}
+
+QTabBar#titleBarTabs::tab {
+    background-color: #F5F5F5;
+    border: 1px solid #E0E0E0;
+    padding: 6px 12px;
+    margin-right: 0px;
+    color: #000000;
+    font-size: 12px;
+}
+
+QTabBar#titleBarTabs::tab:selected {
+    background: #FFFFFF;
+    border-bottom: 2px solid #000000;
+}
+
+QTabBar#titleBarTabs::tab:hover {
+    background: #F5F5F5;
+}
+
 /* ========================================================================== */
 /* Tab Widgets                                                                 */
 /* ========================================================================== */

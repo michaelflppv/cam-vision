@@ -6,7 +6,7 @@ while maintaining the strict monochromatic design philosophy.
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QTabBar, QWidget
 
 from ..styles import fonts, tokens
 
@@ -92,6 +92,7 @@ class CustomTitleBar(QWidget):
     minimize_clicked = Signal()
     maximize_clicked = Signal()
     close_clicked = Signal()
+    navigation_changed = Signal(int)
 
     def __init__(self, title: str = "SecureVision", parent=None):
         """Initialize the custom title bar.
@@ -136,9 +137,38 @@ class CustomTitleBar(QWidget):
         font.setWeight(QFont.Weight.Bold)
         self.title_label.setFont(font)
 
-        # Spacer (draggable area)
-        spacer = QWidget()
-        spacer.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        # Navigation tabs
+        self.nav_tabs = QTabBar()
+        self.nav_tabs.setObjectName("titleBarTabs")
+        self.nav_tabs.setDocumentMode(True)
+        self.nav_tabs.setExpanding(False)
+        self.nav_tabs.setUsesScrollButtons(False)
+        self.nav_tabs.setElideMode(Qt.ElideRight)
+        self.nav_tabs.setFocusPolicy(Qt.NoFocus)
+        self.nav_tabs.currentChanged.connect(self.navigation_changed.emit)
+        self.nav_tabs.hide()
+
+        # Left container
+        left_container = QWidget()
+        left_layout = QHBoxLayout(left_container)
+        left_layout.setContentsMargins(0, 0, 0, 0)
+        left_layout.setSpacing(tokens.SPACING_TIGHT)
+        left_layout.addWidget(controls_container)
+        left_layout.addWidget(self.title_label)
+
+        # Center container (draggable area)
+        nav_container = QWidget()
+        nav_layout = QHBoxLayout(nav_container)
+        nav_layout.setContentsMargins(0, 0, 0, 0)
+        nav_layout.setSpacing(0)
+        nav_layout.addStretch()
+        nav_layout.addWidget(self.nav_tabs)
+        nav_layout.addStretch()
+
+        # Right spacer matches left width to keep tabs centered
+        right_spacer = QWidget()
+        right_spacer.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
+        right_spacer.setFixedWidth(left_container.sizeHint().width())
 
         # Connect button signals
         self.minimize_button.clicked.connect(self.minimize_clicked)
@@ -146,9 +176,9 @@ class CustomTitleBar(QWidget):
         self.close_button.clicked.connect(self.close_clicked)
 
         # Add widgets to layout
-        layout.addWidget(controls_container)
-        layout.addWidget(self.title_label)
-        layout.addWidget(spacer)
+        layout.addWidget(left_container)
+        layout.addWidget(nav_container, 1)
+        layout.addWidget(right_spacer)
 
     def _create_title_button(self, role: str) -> QPushButton:
         """Create a window control button (macOS style).
@@ -172,6 +202,23 @@ class CustomTitleBar(QWidget):
         """
         self._title = title
         self.title_label.setText(title)
+
+    def set_navigation_tabs(self, labels: list[str]) -> None:
+        """Set navigation tabs for the title bar."""
+        while self.nav_tabs.count():
+            self.nav_tabs.removeTab(0)
+        for label in labels:
+            self.nav_tabs.addTab(label)
+        if labels:
+            self.nav_tabs.setCurrentIndex(0)
+            self.nav_tabs.show()
+        else:
+            self.nav_tabs.hide()
+
+    def set_navigation_index(self, index: int) -> None:
+        """Update the selected navigation tab."""
+        if 0 <= index < self.nav_tabs.count():
+            self.nav_tabs.setCurrentIndex(index)
 
     def set_maximized(self, maximized: bool):
         """Update the maximize button icon based on window state.
@@ -245,4 +292,6 @@ class CustomTitleBar(QWidget):
         for button in [self.minimize_button, self.maximize_button, self.close_button]:
             if button.geometry().contains(pos):
                 return True
+        if self.nav_tabs.isVisible() and self.nav_tabs.geometry().contains(pos):
+            return True
         return False

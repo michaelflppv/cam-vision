@@ -1,4 +1,4 @@
-"""Background capture manager for Streamlit dashboard."""
+"""Background capture manager for UI clients."""
 
 from __future__ import annotations
 
