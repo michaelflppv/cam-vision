@@ -151,24 +151,33 @@ class PlateRecognizer(Processor):
                 )
                 continue
 
-            # Quality gate: minimum size
+            # Quality gate: minimum size with soft allowance for adaptive upscale
             if width < self.min_width_px or height < self.min_height_px:
-                self._stats["rejected_size"] += 1
-                logger.debug(
-                    f"Plate rejected: size {width}x{height}px too small "
-                    f"(min={self.min_width_px}x{self.min_height_px}px)"
-                )
-                observations.append(
-                    PlateObservation(
-                        detection=detection,
-                        status="rejected_size",
-                        reason=(
-                            f"size {width}x{height}px < "
-                            f"{self.min_width_px}x{self.min_height_px}px"
-                        ),
+                soft_width = self.min_width_px * 0.6
+                soft_height = self.min_height_px * 0.6
+                if width < soft_width or height < soft_height:
+                    self._stats["rejected_size"] += 1
+                    logger.debug(
+                        f"Plate rejected: size {width}x{height}px too small "
+                        f"(min={self.min_width_px}x{self.min_height_px}px)"
                     )
+                    observations.append(
+                        PlateObservation(
+                            detection=detection,
+                            status="rejected_size",
+                            reason=(
+                                f"size {width}x{height}px < "
+                                f"{self.min_width_px}x{self.min_height_px}px"
+                            ),
+                        )
+                    )
+                    continue
+                logger.debug(
+                    "Plate size %sx%s below preferred threshold but within soft margin, "
+                    "attempting OCR with adaptive upscale.",
+                    width,
+                    height,
                 )
-                continue
 
             # Step 3: OCR
             try:

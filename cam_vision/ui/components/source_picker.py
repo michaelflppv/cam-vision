@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import streamlit as st
 
-from cam_vision.config import DeviceSource, FileSource, HTTPMjpegSource, RTSPSource
+from cam_vision.config import DeviceSource, FileSource, HTTPMjpegSource, RTMPSource, RTSPSource
 
 
 def render_source_picker():
@@ -13,8 +13,8 @@ def render_source_picker():
 
     source_type = st.sidebar.radio(
         "Source Type",
-        options=["device", "rtsp", "http_mjpeg", "file"],
-        index=["device", "rtsp", "http_mjpeg", "file"].index(st.session_state.source_type),
+        options=["device", "rtsp", "http_mjpeg", "file", "rtmp"],
+        index=["device", "rtsp", "http_mjpeg", "file", "rtmp"].index(st.session_state.source_type),
         horizontal=True,
         key="source_type_radio",
     )
@@ -81,5 +81,17 @@ def render_source_picker():
 
         if file_path:
             source_config = FileSource(url=file_path)
+
+    elif source_type == "rtmp":
+        rtmp_url = st.sidebar.text_input(
+            "RTMP URL",
+            value=st.session_state.get("rtmp_url", "rtmp://"),
+            placeholder="rtmp://host:port/app/stream",
+            key="rtmp_url_input",
+        )
+        st.session_state.rtmp_url = rtmp_url
+
+        if rtmp_url and rtmp_url != "rtmp://":
+            source_config = RTMPSource(url=rtmp_url)
 
     return source_config

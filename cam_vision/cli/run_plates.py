@@ -224,11 +224,13 @@ Examples:
         "--source-type",
         type=str,
         required=True,
-        choices=["device", "rtsp", "http_mjpeg", "file"],
+        choices=["device", "rtsp", "http_mjpeg", "file", "rtmp"],
         help="Video source type",
     )
     parser.add_argument("--device", type=int, default=0, help="Device index (for device source)")
-    parser.add_argument("--url", type=str, help="URL or path (for rtsp/http_mjpeg/file)")
+    parser.add_argument(
+        "--url", type=str, help="URL or path (for rtsp/http_mjpeg/file/rtmp sources)"
+    )
     parser.add_argument("--backend", type=str, help="OpenCV backend (e.g., AVFOUNDATION)")
     parser.add_argument("--fps", type=int, default=15, help="Target FPS (default: 15)")
     parser.add_argument("--resize", type=str, help="Resize frames (e.g., 640x480)")

@@ -100,6 +100,9 @@ def init_session_state() -> None:
     if "file_path" not in st.session_state:
         st.session_state.file_path = ""
 
+    if "rtmp_url" not in st.session_state:
+        st.session_state.rtmp_url = "rtmp://"
+
     if "fps_target" not in st.session_state:
         st.session_state.fps_target = 15
 

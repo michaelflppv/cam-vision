@@ -11,7 +11,14 @@ from typing import Optional
 import cv2
 import numpy as np
 
-from ..config import DeviceSource, FileSource, HTTPMjpegSource, RTSPSource, VideoSettings
+from ..config import (
+    DeviceSource,
+    FileSource,
+    HTTPMjpegSource,
+    RTMPSource,
+    RTSPSource,
+    VideoSettings,
+)
 from ..pipeline.base import FrameSource
 from ..types import Frame
 from ..utils.timing import FPSMeter
@@ -68,7 +75,7 @@ class OpenCVCapture(FrameSource):
 
     def __init__(
         self,
-        source_config: DeviceSource | RTSPSource | HTTPMjpegSource | FileSource,
+        source_config: DeviceSource | RTSPSource | HTTPMjpegSource | FileSource | RTMPSource,
         fps_target: int,
         frame_resize: Optional[tuple[int, int]] = None,
         rotate_180: bool = False,
@@ -146,6 +153,8 @@ class OpenCVCapture(FrameSource):
         elif isinstance(self.source_config, RTSPSource):
             self._open_network(self.source_config.url)
         elif isinstance(self.source_config, HTTPMjpegSource):
+            self._open_network(self.source_config.url)
+        elif isinstance(self.source_config, RTMPSource):
             self._open_network(self.source_config.url)
         elif isinstance(self.source_config, FileSource):
             self._open_file()

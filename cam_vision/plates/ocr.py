@@ -5,12 +5,19 @@ from __future__ import annotations
 import logging
 import re
 from dataclasses import dataclass
-from typing import Tuple
+from typing import Dict, Tuple
 
 import cv2
 import numpy as np
 
 from ..types import BBox
+
+ENABLE_ALL_PREPROCESSING: Dict[str, bool] = {
+    "enable_grayscale": True,
+    "enable_bilateral": True,
+    "enable_adaptive_threshold": True,
+    "enable_clahe": True,
+}
 
 logger = logging.getLogger(__name__)
 
@@ -131,27 +138,31 @@ class TesseractOCR:
         # Step 1: Crop plate region with margin
         plate_crop = self._crop_with_margin(frame, bbox)
 
-        # Step 2: Apply preprocessing pipeline
-        preprocessed, pipeline_used = self._preprocess(plate_crop)
+        overrides, adaptive_notes = self._determine_adaptive_overrides(plate_crop)
+        results: list[OCRResult] = []
 
-        # Step 3: Run Tesseract OCR
-        text_raw, confidence = self._run_tesseract(preprocessed)
+        # First pass with adaptive overrides
+        results.append(self._ocr_with_overrides(plate_crop, overrides, adaptive_notes))
 
-        # Step 4: Post-process text
-        text_clean = self._clean_text(text_raw)
+        base_result = results[0]
+        needs_fallback = (
+            base_result.confidence < 40.0 or len(base_result.text_clean) < self.min_text_length
+        )
 
-        # Update stats
-        if len(text_clean) >= self.min_text_length:
+        if needs_fallback:
+            for fallback_overrides, fallback_notes in self._generate_fallback_variants(overrides):
+                results.append(
+                    self._ocr_with_overrides(plate_crop, fallback_overrides, fallback_notes)
+                )
+
+        best_result = self._select_best_result(results)
+
+        if len(best_result.text_clean) >= self.min_text_length:
             self._stats["successful_reads"] += 1
         else:
             self._stats["empty_reads"] += 1
 
-        return OCRResult(
-            text_raw=text_raw,
-            text_clean=text_clean,
-            confidence=confidence,
-            preprocessing_used=pipeline_used,
-        )
+        return best_result
 
     def _crop_with_margin(self, frame: np.ndarray, bbox: BBox) -> np.ndarray:
         """Crop plate region with padding to avoid cutting characters."""
@@ -165,7 +176,9 @@ class TesseractOCR:
 
         return frame[y1:y2, x1:x2]
 
-    def _preprocess(self, plate_crop: np.ndarray) -> Tuple[np.ndarray, str]:
+    def _preprocess(
+        self, plate_crop: np.ndarray, overrides: Dict[str, bool] | None = None
+    ) -> Tuple[np.ndarray, str]:
         """
         Apply preprocessing pipeline to plate crop.
 
@@ -174,21 +187,29 @@ class TesseractOCR:
         """
         img = plate_crop.copy()
         pipeline_steps = []
+        flags = overrides or {}
+
+        enable_grayscale = flags.get("enable_grayscale", self.enable_grayscale)
+        enable_bilateral = flags.get("enable_bilateral", self.enable_bilateral)
+        enable_adaptive_threshold = flags.get(
+            "enable_adaptive_threshold", self.enable_adaptive_threshold
+        )
+        enable_clahe = flags.get("enable_clahe", self.enable_clahe)
 
         # 1. Grayscale conversion (recommended)
-        if self.enable_grayscale:
+        if enable_grayscale:
             img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
             pipeline_steps.append("grayscale")
 
         # 2. Bilateral filter (optional, for noise)
-        if self.enable_bilateral:
+        if enable_bilateral:
             img = cv2.bilateralFilter(
                 img, self.bilateral_d, self.bilateral_sigma_color, self.bilateral_sigma_space
             )
             pipeline_steps.append("bilateral")
 
         # 3. Adaptive thresholding (optional, for uneven lighting)
-        if self.enable_adaptive_threshold:
+        if enable_adaptive_threshold:
             # Ensure grayscale
             if len(img.shape) == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -204,7 +225,7 @@ class TesseractOCR:
             pipeline_steps.append("adaptive_threshold")
 
         # 4. CLAHE (optional, research shows minimal benefit)
-        if self.enable_clahe:
+        if enable_clahe:
             # Ensure grayscale
             if len(img.shape) == 3:
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
@@ -289,6 +310,124 @@ class TesseractOCR:
         text = re.sub(f"[^{allowed_pattern}]", "", text)
 
         return text
+
+    def _ocr_with_overrides(
+        self, plate_crop: np.ndarray, overrides: Dict[str, bool | float], notes: list[str]
+    ) -> OCRResult:
+        """Run OCR with the provided preprocessing overrides."""
+        local_overrides: Dict[str, bool | float] = dict(overrides)
+        working = plate_crop.copy()
+
+        upscale_factor = float(local_overrides.pop("upscale_factor", 1.0))
+        if upscale_factor > 1.0:
+            working = cv2.resize(
+                working,
+                None,
+                fx=upscale_factor,
+                fy=upscale_factor,
+                interpolation=cv2.INTER_CUBIC,
+            )
+
+        bool_overrides = {k: v for k, v in local_overrides.items() if isinstance(v, bool)}
+
+        preprocessed, pipeline_used = self._preprocess(working, bool_overrides)
+
+        if local_overrides.get("invert", False):
+            preprocessed = cv2.bitwise_not(preprocessed)
+            pipeline_used = f"{pipeline_used}+invert" if pipeline_used != "none" else "invert"
+
+        if local_overrides.get("morph_open", False):
+            kernel = np.ones((3, 3), np.uint8)
+            preprocessed = cv2.morphologyEx(preprocessed, cv2.MORPH_OPEN, kernel)
+            pipeline_used = (
+                f"{pipeline_used}+morph_open" if pipeline_used != "none" else "morph_open"
+            )
+
+        if notes:
+            adaptive_info = ",".join(notes)
+            pipeline_used = (
+                adaptive_info if pipeline_used == "none" else f"{pipeline_used}+{adaptive_info}"
+            )
+
+        text_raw, confidence = self._run_tesseract(preprocessed)
+        text_clean = self._clean_text(text_raw)
+
+        return OCRResult(
+            text_raw=text_raw,
+            text_clean=text_clean,
+            confidence=confidence,
+            preprocessing_used=pipeline_used,
+        )
+
+    def _determine_adaptive_overrides(
+        self, plate_crop: np.ndarray
+    ) -> Tuple[Dict[str, bool | float], list[str]]:
+        """Derive preprocessing overrides based on plate crop characteristics."""
+        overrides: Dict[str, bool | float] = {}
+        notes: list[str] = []
+
+        height, width = plate_crop.shape[:2]
+        min_dim = max(1, min(height, width))
+
+        target_min_dim = 110
+        if min_dim < target_min_dim:
+            scale = min(3.0, max(1.5, target_min_dim / min_dim))
+            overrides["upscale_factor"] = scale
+            notes.append("auto_upscale")
+
+        gray = cv2.cvtColor(plate_crop, cv2.COLOR_BGR2GRAY)
+        mean_intensity = float(np.mean(gray))
+        std_intensity = float(np.std(gray))
+
+        if mean_intensity < 110 or mean_intensity > 200:
+            overrides["enable_adaptive_threshold"] = True
+            overrides["enable_grayscale"] = True
+            notes.append("auto_threshold")
+
+        if std_intensity < 25:
+            overrides["enable_clahe"] = True
+            overrides["enable_grayscale"] = True
+            notes.append("auto_clahe")
+
+        if 25 <= std_intensity <= 55:
+            overrides["enable_bilateral"] = True
+            notes.append("auto_bilateral")
+        elif std_intensity > 65:
+            overrides["enable_bilateral"] = False
+
+        return overrides, notes
+
+    def _generate_fallback_variants(
+        self, base_overrides: Dict[str, bool | float]
+    ) -> list[Tuple[Dict[str, bool | float], list[str]]]:
+        """Return fallback preprocessing combinations for challenging plates."""
+        variants: list[Tuple[Dict[str, bool | float], list[str]]] = []
+
+        aggressive_threshold = dict(base_overrides)
+        aggressive_threshold.update(ENABLE_ALL_PREPROCESSING)
+        variants.append((aggressive_threshold, ["fallback_threshold"]))
+
+        inverted_high_contrast = dict(base_overrides)
+        inverted_high_contrast.update(ENABLE_ALL_PREPROCESSING)
+        inverted_high_contrast["invert"] = True
+        variants.append((inverted_high_contrast, ["fallback_invert"]))
+
+        morph_cleanup = dict(base_overrides)
+        morph_cleanup.update(ENABLE_ALL_PREPROCESSING)
+        morph_cleanup["morph_open"] = True
+        variants.append((morph_cleanup, ["fallback_morph"]))
+
+        return variants
+
+    def _select_best_result(self, results: list[OCRResult]) -> OCRResult:
+        """Choose the best OCR result by confidence then text length."""
+        if not results:
+            return OCRResult("", "", 0.0, "none")
+
+        def _score(res: OCRResult) -> Tuple[float, int]:
+            return res.confidence, len(res.text_clean)
+
+        return max(results, key=_score)
 
     def _normalize_characters(self, text: str) -> str:
         """Normalize accented and Cyrillic characters for consistent post-processing."""

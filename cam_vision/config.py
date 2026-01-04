@@ -5,7 +5,7 @@ from typing import Literal, Optional, Tuple
 from pydantic import BaseModel, Field, PositiveInt, ValidationError, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
-SourceType = Literal["device", "rtsp", "http_mjpeg", "file"]
+SourceType = Literal["device", "rtsp", "http_mjpeg", "file", "rtmp"]
 
 
 class DeviceSource(BaseModel):
@@ -32,6 +32,11 @@ class FileSource(BaseModel):
     url: str = Field(..., description="Local path to video file")
 
 
+class RTMPSource(BaseModel):
+    type: Literal["rtmp"] = "rtmp"
+    url: str = Field(..., description="rtmp://host:port/app/stream key")
+
+
 class VideoSource(BaseModel):
     """
     Discriminated union-ish model holding one of the four source configs.
@@ -50,7 +55,7 @@ class VideoSource(BaseModel):
             return None
         return v
 
-    def to_concrete(self) -> DeviceSource | RTSPSource | HTTPMjpegSource | FileSource:
+    def to_concrete(self) -> DeviceSource | RTSPSource | HTTPMjpegSource | FileSource | RTMPSource:
         if self.type == "device":
             return DeviceSource(
                 type="device", device_index=self.device_index or 0, backend=self.backend
@@ -76,6 +81,13 @@ class VideoSource(BaseModel):
                     VideoSource,
                 )
             return FileSource(type="file", url=self.url)
+        if self.type == "rtmp":
+            if not self.url:
+                raise ValidationError(
+                    [{"loc": ("url",), "msg": "RTMP url required", "type": "value_error"}],
+                    VideoSource,
+                )
+            return RTMPSource(type="rtmp", url=self.url)
         raise ValueError(f"Unknown type: {self.type}")
 
 

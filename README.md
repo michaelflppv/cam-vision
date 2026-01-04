@@ -414,7 +414,7 @@ poetry run securevision-preview --source-type device --device 0 --backend AVFOUN
 ### Features
 
 **Live Source Switching:**
-- Switch between device → RTSP → file → HTTP without restart
+- Switch between device → RTSP → RTMP → file → HTTP without restart
 - Auto-reconnect for network sources
 - Dynamic FPS control (1-30 FPS slider)
 - Frame resize options (640×480, 800×600, 1280×720)
@@ -429,6 +429,82 @@ poetry run securevision-preview --source-type device --device 0 --backend AVFOUN
 **Plate Insights:**
 - Recognised plates and low-confidence reads are listed side-by-side with detection/OCR metrics
 - Track-aware overlays colour-code whitelist, blacklist, and pending detections in both the dashboard and preview window
+- Adaptive OCR preprocessing auto-selects thresholding/contrast boosts and upscales small plates for clearer reads
+
+## TP-Link Tapo Camera Integration
+
+The project ships with first-class support for TP-Link Tapo cameras so an iPad user can go from unboxing to viewing live detections without touching code.
+
+### 1. Enable RTSP in the Tapo app
+
+1. Open the Tapo mobile app → **Camera Settings** → **Advanced Settings** → **Camera Control**.
+2. Enable the **RTSP**/“Stream” toggle and set the dedicated camera username & password.
+3. Note the camera’s LAN IP address (e.g. `192.168.1.42`).
+
+### 2. Validate the stream in VLC (recommended)
+
+- High stream: `rtsp://USER:PASS@CAM_IP:554/stream1`
+- Low stream: `rtsp://USER:PASS@CAM_IP:554/stream2`
+
+Open VLC → **File ▸ Open Network** (macOS/iPadOS) → paste the URL → confirm video plays. If it fails, re-check that RTSP is enabled, the credentials are correct, port `554` is reachable, and try `/stream2` for the lower bandwidth feed.
+
+### 3. Watch on SecureVision (iPad friendly)
+
+1. Deploy SecureVision with HTTPS enabled (see [deployment docs](#deployment) – the Streamlit UI runs over TLS by default when fronted by a reverse proxy).
+2. On the iPad open Safari and visit the dashboard.
+3. In the sidebar source picker choose **RTSP**, paste the `stream1` or `stream2` URL, and press **Connect**.
+4. The live preview, face matches, and plate reads appear instantly—no local coding required.
+
+The same RTSP URL works in the command-line tools:
+
+```bash
+poetry run securevision-preview --source-type rtsp --url "rtsp://USER:PASS@CAM_IP:554/stream1"
+```
+
+### Optional: ONVIF discovery & profile helpers
+
+Install the optional ONVIF helpers when you want automatic LAN discovery:
+
+```bash
+poetry install --with onvif
+poetry run securevision-onvif-discover --username tapo_user --password tapo_pass
+```
+
+The helper lists ONVIF profiles and suggested RTSP URLs so you can copy/paste directly into the dashboard. Discovery is optional—the core install stays lightweight if you skip the extra.
+
+### Optional: RTMP ingest for remote cameras
+
+Some users cannot expose the camera’s LAN. SecureVision now accepts **RTMP** sources; point the dashboard, preview CLI, or pipelines at an RTMP URL (`rtmp://host:port/app/stream`).
+
+- Self-host a lightweight ingest such as [MediaMTX](https://github.com/bluenviron/mediamtx):
+
+  ```bash
+  docker run --rm -it -p 1935:1935 -p 8554:8554 -p 8888:8888 bluenviron/mediamtx:latest
+  ```
+
+- Configure the Tapo app (or a mobile broadcaster) to push to `rtmp://YOUR_SERVER:1935/live/tapo`. In SecureVision select **RTMP** and use the same URL (`rtmp://YOUR_SERVER:1935/live/tapo`).
+- Alternatively, restream RTSP → RTMP/HLS using [go2rtc](https://github.com/AlexxIT/go2rtc) or similar.
+
+### Optional: LAN profile enumeration via ONVIF
+
+If you prefer zero manual typing, keep SecureVision and the camera on the same LAN and run `securevision-onvif-discover`. When `ws-discovery` is available it will advertise ONVIF devices automatically, enumerate media profiles, and propose RTSP URLs tailored for Tapo stream1/stream2.
+
+### Offline analysis of Tapo recordings
+
+- Select **File** in the source picker and point to MP4 clips exported from the Tapo app or copied off the micro-SD card.
+- Command line preview works too:
+
+  ```bash
+  poetry run securevision-preview --source-type file --url ~/Downloads/tapo_clip.mp4
+  ```
+
+- Community tools like [pytapo](https://github.com/JurajNyiri/pytapo) can list and download recordings programmatically, but they are unofficial and may change—use at your own risk.
+
+### Privacy & security notes
+
+- SecureVision never stores face crops or plate thumbnails unless you explicitly enable logging. Matches stay in memory for live overlay only.
+- Use unique RTSP and dashboard credentials. Prefer running the HTTPS dashboard behind basic auth (e.g. via Traefik/NGINX) so iPad Safari sessions require a login.
+- Keep the Tapo camera on a trusted network segment; disable cloud sharing if not needed.
 
 **OCR Presets:**
 - Fast (Grayscale Only) - Lowest overhead

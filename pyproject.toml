@@ -13,6 +13,8 @@ securevision-preview = "cam_vision.cli.run_preview:main"
 securevision-plates = "cam_vision.cli.run_plates:main"
 securevision-api = "cam_vision.cli.run_api:main"
 securevision-ui = "cam_vision.cli.run_ui:main"
+securevision-qt = "cam_vision.cli.run_qt_ui:main"
+securevision-onvif-discover = "cam_vision.cli.onvif_discover:main"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
@@ -44,6 +46,10 @@ python-multipart = "^0.0.9"
 
 # PR7: Dashboard dependencies
 streamlit = "^1.39.0"
+
+# PR8: Qt UI dependencies
+PySide6 = "^6.6.0"
+qasync = "^0.27.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"

@@ -183,7 +183,7 @@ Examples:
         "--source-type",
         type=str,
         required=True,
-        choices=["device", "rtsp", "http_mjpeg", "file"],
+        choices=["device", "rtsp", "http_mjpeg", "file", "rtmp"],
         help="Video source type",
     )
 
