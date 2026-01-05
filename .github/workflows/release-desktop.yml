@@ -37,7 +37,8 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo NEEDRESTART_MODE=a apt-get install -y tesseract-ocr
+          sudo NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1 DEBIAN_FRONTEND=noninteractive \
+            apt-get install -y tesseract-ocr
           mkdir -p build/tesseract/bin build/tesseract/lib build/tesseract/share
           TESSERACT_BIN="$(which tesseract)"
           cp "$TESSERACT_BIN" build/tesseract/bin/
@@ -66,12 +67,22 @@ jobs:
           Copy-Item "C:\\Program Files\\Tesseract-OCR\\*" -Destination build\\tesseract -Recurse
           "SECUREVISION_TESSERACT_DIR=$env:GITHUB_WORKSPACE\\build\\tesseract" | Out-File -FilePath $env:GITHUB_ENV -Append
 
-      - name: Prepare InsightFace models
+      - name: Prepare InsightFace models (Linux/macOS)
+        if: runner.os != 'Windows'
         run: |
           mkdir -p build/insightface
           echo "SECUREVISION_INSIGHTFACE_DIR=${GITHUB_WORKSPACE}/build/insightface" >> "$GITHUB_ENV"
           SECUREVISION_INSIGHTFACE_DIR="${GITHUB_WORKSPACE}/build/insightface" \
             python -m poetry run python scripts/prepare_insightface_models.py
+
+      - name: Prepare InsightFace models (Windows)
+        if: runner.os == 'Windows'
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Path build\insightface | Out-Null
+          "SECUREVISION_INSIGHTFACE_DIR=$env:GITHUB_WORKSPACE\build\insightface" | Out-File -FilePath $env:GITHUB_ENV -Append
+          $env:SECUREVISION_INSIGHTFACE_DIR="$env:GITHUB_WORKSPACE\build\insightface"
+          python -m poetry run python scripts/prepare_insightface_models.py
 
       - name: Build app
         env:
