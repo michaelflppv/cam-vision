@@ -1,20 +1,19 @@
 /*
- * SecureVision Monochromatic Stylesheet
+ * SecureVision Modern Stylesheet
  *
- * Strict Design Philosophy:
- * - Zero border-radius on ALL elements (sharp edges only)
- * - Light theme defaults: white backgrounds, black primary actions
- * - Subtle monochrome borders for unfocused states
- * - No gradients, shadows, or bevels (completely flat)
+ * Modern Design Philosophy:
+ * - Subtle rounded corners for modern aesthetic
+ * - Smooth gradients for depth
+ * - Light and dark theme support
+ * - Subtle shadows for elevation
  * - Generous padding and whitespace
  */
 
 /* ========================================================================== */
-/* Global Reset - Enforce Zero Border-Radius Everywhere                       */
+/* Global Reset - Modern Styling                                              */
 /* ========================================================================== */
 
 * {
-    border-radius: 0px;
     outline: none;
 }
 
@@ -80,6 +79,7 @@ QPushButton#primary {
     background-color: $ACCENT_PRIMARY;
     color: $TEXT_INVERTED;
     border: none;
+    border-radius: 6px;
     padding: 8px 16px;
     font-size: 12px;
     font-weight: 600;
@@ -107,6 +107,7 @@ QPushButton#secondary {
     background-color: $BACKGROUND_PRIMARY;
     color: $TEXT_PRIMARY;
     border: 1px solid $BORDER_FOCUSED;
+    border-radius: 6px;
     padding: 8px 16px;
     font-size: 12px;
     font-weight: 400;
@@ -135,6 +136,7 @@ QPushButton {
     background-color: $BACKGROUND_PRIMARY;
     color: $TEXT_PRIMARY;
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 6px;
     padding: 8px 16px;
     font-size: 12px;
     min-height: 32px;
@@ -161,6 +163,7 @@ QPushButton:disabled {
 QLineEdit, QTextEdit, QPlainTextEdit {
     background-color: $BACKGROUND_PRIMARY;
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 6px;
     padding: 6px 12px;
     color: $TEXT_PRIMARY;
     font-size: 12px;
@@ -179,6 +182,7 @@ QLineEdit:disabled, QTextEdit:disabled, QPlainTextEdit:disabled {
 QSpinBox, QDoubleSpinBox {
     background-color: $BACKGROUND_PRIMARY;
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 6px;
     padding: 6px 12px;
     color: $TEXT_PRIMARY;
     font-size: 12px;
@@ -223,6 +227,7 @@ QSlider::groove:horizontal {
 
 QSlider::handle:horizontal {
     background: $ACCENT_PRIMARY;
+    border-radius: 8px;
     width: 16px;
     height: 16px;
     margin: -6px 0;
@@ -252,6 +257,7 @@ QSlider::groove:vertical {
 
 QSlider::handle:vertical {
     background: $ACCENT_PRIMARY;
+    border-radius: 8px;
     width: 16px;
     height: 16px;
     margin: 0 -6px;
@@ -272,6 +278,7 @@ QSlider::add-page:vertical {
 QComboBox {
     background-color: $BACKGROUND_PRIMARY;
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 6px;
     padding: 6px 12px;
     color: $TEXT_PRIMARY;
     font-size: 12px;
@@ -300,6 +307,7 @@ QComboBox::down-arrow {
 QComboBox QAbstractItemView {
     background-color: $BACKGROUND_PRIMARY;
     border: 1px solid $BORDER_FOCUSED;
+    border-radius: 6px;
     color: $TEXT_PRIMARY;
     selection-background-color: $ACCENT_PRIMARY;
     selection-color: $TEXT_INVERTED;
@@ -334,6 +342,7 @@ QCheckBox::indicator {
     width: 16px;
     height: 16px;
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 4px;
     background: $BACKGROUND_PRIMARY;
 }
 
@@ -369,8 +378,8 @@ QRadioButton::indicator {
     width: 16px;
     height: 16px;
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 8px;
     background: $BACKGROUND_PRIMARY;
-    /* Override default circular shape with square */
 }
 
 QRadioButton::indicator:hover {
@@ -392,6 +401,7 @@ QRadioButton::indicator:checked:hover {
 
 QProgressBar {
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 10px;
     background: $BACKGROUND_PRIMARY;
     height: 20px;
     text-align: center;
@@ -401,6 +411,7 @@ QProgressBar {
 
 QProgressBar::chunk {
     background-color: $ACCENT_PRIMARY;
+    border-radius: 9px;
 }
 
 /* ========================================================================== */
@@ -420,6 +431,7 @@ QScrollBar:vertical {
 
 QScrollBar::handle:vertical {
     background: $ACCENT_PRIMARY;
+    border-radius: 6px;
     min-height: 20px;
 }
 
@@ -445,6 +457,7 @@ QScrollBar:horizontal {
 
 QScrollBar::handle:horizontal {
     background: $ACCENT_PRIMARY;
+    border-radius: 6px;
     min-width: 20px;
 }
 
@@ -530,6 +543,7 @@ QLabel#success {
 QFrame#statCard {
     background-color: $BACKGROUND_SUBTLE;
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 8px;
     padding: 16px;
     max-height: 80px;
     min-height: 80px;
@@ -555,6 +569,7 @@ QLabel#statValue {
 QFrame#detectionCard {
     background-color: $BACKGROUND_PRIMARY;
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 8px;
     padding: 16px;
 }
 
@@ -565,6 +580,7 @@ QFrame#detectionCard {
 QPushButton#collapseHeader {
     background-color: $BACKGROUND_PRIMARY;
     border: 1px solid $BORDER_UNFOCUSED;
+    border-radius: 6px;
     padding: 12px;
     text-align: left;
     font-size: 12px;
@@ -695,6 +711,7 @@ QToolTip {
     background-color: $TOOLTIP_BACKGROUND;
     color: $TOOLTIP_TEXT;
     border: none;
+    border-radius: 6px;
     padding: 6px 12px;
     font-size: 11px;
 }
@@ -721,6 +738,7 @@ QMenuBar::item:selected {
 QMenu {
     background-color: $BACKGROUND_PRIMARY;
     border: 1px solid $BORDER_FOCUSED;
+    border-radius: 8px;
     padding: 4px;
 }
 

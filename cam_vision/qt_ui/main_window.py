@@ -8,6 +8,7 @@ import logging
 
 from PySide6.QtCore import Qt
 from PySide6.QtWidgets import (
+    QApplication,
     QFrame,
     QHBoxLayout,
     QMainWindow,
@@ -31,7 +32,7 @@ from .components import (
     VideoSettings,
 )
 from .state import AppState
-from .styles import tokens
+from .styles import load_stylesheet, theme, tokens
 from .widgets.custom_titlebar import CustomTitleBar
 from .workers import CaptureWorker
 
@@ -79,6 +80,9 @@ class SecureVisionMainWindow(QMainWindow):
         self._apply_window_sizing()
         self._connect_signals()
         self._on_connection_state_changed(self.state.is_connected())
+
+        # Initialize theme from saved state
+        self.title_bar.set_theme(self.state.get_theme())
 
     def _setup_ui(self):
         """Set up the UI layout."""
@@ -299,6 +303,9 @@ class SecureVisionMainWindow(QMainWindow):
         self.title_bar.set_navigation_tabs(nav_labels)
         self.title_bar.navigation_changed.connect(self._on_navigation_changed)
 
+        # Theme switcher
+        self.title_bar.theme_changed.connect(self._on_theme_changed)
+
     def _on_connect_clicked(self):
         """Handle Connect button click."""
         logger.info("Connect button clicked")
@@ -504,6 +511,33 @@ class SecureVisionMainWindow(QMainWindow):
     def _on_navigation_changed(self, index: int):
         """Switch content pages based on title bar navigation."""
         self.page_stack.setCurrentIndex(index)
+
+    def _on_theme_changed(self, theme_name: str):
+        """Handle theme change from title bar switcher.
+
+        Args:
+            theme_name: New theme name ("light", "system", "dark")
+        """
+        logger.info(f"Theme changed to: {theme_name}")
+
+        # Update state (will persist on close)
+        self.state.set_theme(theme_name)
+
+        # Get QApplication instance
+        app = QApplication.instance()
+        if app is None:
+            logger.error("QApplication instance not found")
+            return
+
+        # Apply theme to tokens
+        resolved = theme.apply_theme(app, theme_name)
+        logger.info(f"Resolved theme: {resolved}")
+
+        # Reload and apply stylesheet
+        stylesheet = load_stylesheet()
+        app.setStyleSheet(stylesheet)
+
+        logger.info("Theme applied successfully")
 
     def _toggle_maximize(self):
         """Toggle between maximized and normal window state."""

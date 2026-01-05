@@ -55,11 +55,11 @@ _COLOR_TOKEN_NAMES: Iterable[str] = (
 _LIGHT_THEME: Dict[str, str] = {
     # Backgrounds
     "BACKGROUND_PRIMARY": "#FFFFFF",
-    "BACKGROUND_SUBTLE": "#F5F5F5",
-    "BACKGROUND_HOVER": "#F5F5F5",
-    "BACKGROUND_WINDOW_GRADIENT_END": "#F2F2F2",
-    "BACKGROUND_SIDEBAR_GRADIENT_END": "#F6F6F6",
-    "BACKGROUND_CONTENT_GRADIENT_END": "#F7F7F7",
+    "BACKGROUND_SUBTLE": "#F8F9FA",
+    "BACKGROUND_HOVER": "#F0F1F3",
+    "BACKGROUND_WINDOW_GRADIENT_END": "#E8EAED",
+    "BACKGROUND_SIDEBAR_GRADIENT_END": "#F0F2F5",
+    "BACKGROUND_CONTENT_GRADIENT_END": "#F5F7FA",
     # Text
     "TEXT_PRIMARY": "#000000",
     "TEXT_SECONDARY": "#888888",
@@ -101,12 +101,12 @@ _LIGHT_THEME: Dict[str, str] = {
 
 _DARK_THEME: Dict[str, str] = {
     # Backgrounds
-    "BACKGROUND_PRIMARY": "#0F0F0F",
-    "BACKGROUND_SUBTLE": "#1A1A1A",
-    "BACKGROUND_HOVER": "#222222",
-    "BACKGROUND_WINDOW_GRADIENT_END": "#141414",
-    "BACKGROUND_SIDEBAR_GRADIENT_END": "#161616",
-    "BACKGROUND_CONTENT_GRADIENT_END": "#181818",
+    "BACKGROUND_PRIMARY": "#121212",
+    "BACKGROUND_SUBTLE": "#1E1E1E",
+    "BACKGROUND_HOVER": "#2A2A2A",
+    "BACKGROUND_WINDOW_GRADIENT_END": "#0A0A0A",
+    "BACKGROUND_SIDEBAR_GRADIENT_END": "#181818",
+    "BACKGROUND_CONTENT_GRADIENT_END": "#1A1A1A",
     # Text
     "TEXT_PRIMARY": "#F5F5F5",
     "TEXT_SECONDARY": "#B0B0B0",
@@ -152,9 +152,47 @@ def apply_theme(theme: str) -> str:
     palette_name = theme.lower()
     if palette_name == "dark":
         palette = _DARK_THEME
+        # Set dark theme gradients
+        globals()[
+            "GRADIENT_WINDOW"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['BACKGROUND_PRIMARY']}, stop:1 {palette['BACKGROUND_WINDOW_GRADIENT_END']})"
+        globals()[
+            "GRADIENT_SIDEBAR"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['BACKGROUND_PRIMARY']}, stop:1 {palette['BACKGROUND_SIDEBAR_GRADIENT_END']})"
+        globals()[
+            "GRADIENT_CONTENT"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['BACKGROUND_PRIMARY']}, stop:1 {palette['BACKGROUND_CONTENT_GRADIENT_END']})"
+        globals()[
+            "GRADIENT_CARD"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['BACKGROUND_SUBTLE']}, stop:1 {palette['BACKGROUND_PRIMARY']})"
+        globals()[
+            "GRADIENT_BUTTON"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['ACCENT_PRIMARY']}, stop:1 #0A0A0A)"
+        globals()[
+            "GRADIENT_BUTTON_HOVER"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['ACCENT_PRIMARY_HOVER']}, stop:1 #1A1A1A)"
     else:
         palette_name = "light"
         palette = _LIGHT_THEME
+        # Set light theme gradients
+        globals()[
+            "GRADIENT_WINDOW"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['BACKGROUND_PRIMARY']}, stop:1 {palette['BACKGROUND_WINDOW_GRADIENT_END']})"
+        globals()[
+            "GRADIENT_SIDEBAR"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['BACKGROUND_PRIMARY']}, stop:1 {palette['BACKGROUND_SIDEBAR_GRADIENT_END']})"
+        globals()[
+            "GRADIENT_CONTENT"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['BACKGROUND_PRIMARY']}, stop:1 {palette['BACKGROUND_CONTENT_GRADIENT_END']})"
+        globals()[
+            "GRADIENT_CARD"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['BACKGROUND_SUBTLE']}, stop:1 {palette['BACKGROUND_PRIMARY']})"
+        globals()[
+            "GRADIENT_BUTTON"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['ACCENT_PRIMARY']}, stop:1 #2A2A2A)"
+        globals()[
+            "GRADIENT_BUTTON_HOVER"
+        ] = f"qlineargradient(x1:0, y1:0, x2:0, y2:1, stop:0 {palette['ACCENT_PRIMARY_HOVER']}, stop:1 #1A1A1A)"
 
     globals().update(palette)
     return palette_name
@@ -221,7 +259,12 @@ MARGIN_PANEL = 16  # px - margin around panels
 
 # Borders
 BORDER_WIDTH = 1  # px - standard border width
-BORDER_RADIUS = 0  # px - ZERO EVERYWHERE (strict requirement)
+BORDER_RADIUS_NONE = 0  # px - no rounding
+BORDER_RADIUS_SMALL = 4  # px - subtle rounding (buttons, inputs)
+BORDER_RADIUS_MEDIUM = 8  # px - moderate rounding (cards, panels)
+BORDER_RADIUS_LARGE = 12  # px - prominent rounding (modals, large containers)
+BORDER_RADIUS_XLARGE = 16  # px - very prominent (hero sections)
+BORDER_RADIUS = BORDER_RADIUS_MEDIUM  # Default border radius for modern look
 
 # Buttons
 BUTTON_HEIGHT = 32  # px - standard button height
@@ -297,9 +340,25 @@ Z_INDEX_MODAL = 100  # Modal dialogs
 Z_INDEX_TITLEBAR = 1000  # Custom title bar (always on top)
 
 # ============================================================================
-# Shadows - DISABLED (flat design)
+# Gradients - Modern UI
 # ============================================================================
 
-# All shadows are disabled for strict flat geometry
-# No box-shadow, no drop-shadow, no text-shadow
+# Enable gradients for modern look
+GRADIENT_ENABLED = True
+
+# Window gradients (set dynamically by theme)
+GRADIENT_WINDOW = None  # Set by apply_theme()
+GRADIENT_SIDEBAR = None  # Set by apply_theme()
+GRADIENT_CONTENT = None  # Set by apply_theme()
+GRADIENT_CARD = None  # Set by apply_theme()
+GRADIENT_BUTTON = None  # Set by apply_theme()
+GRADIENT_BUTTON_HOVER = None  # Set by apply_theme()
+
+# ============================================================================
+# Shadows - Subtle depth for modern design
+# ============================================================================
+
+SHADOW_SUBTLE = "0px 1px 3px rgba(0, 0, 0, 0.1)"  # Subtle shadow for cards
+SHADOW_MEDIUM = "0px 2px 6px rgba(0, 0, 0, 0.15)"  # Medium shadow for elevated elements
+SHADOW_PROMINENT = "0px 4px 12px rgba(0, 0, 0, 0.2)"  # Prominent shadow for modals
 SHADOW_NONE = "none"

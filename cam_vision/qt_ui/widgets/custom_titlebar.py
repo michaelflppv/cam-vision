@@ -6,9 +6,10 @@ while maintaining the strict monochromatic design philosophy.
 
 from PySide6.QtCore import Qt, Signal
 from PySide6.QtGui import QFont
-from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QSizePolicy, QTabBar, QWidget
+from PySide6.QtWidgets import QHBoxLayout, QLabel, QPushButton, QTabBar, QWidget
 
 from ..styles import fonts, tokens
+from .theme_switcher import ThemeSwitcher
 
 
 class MacOSButton(QPushButton):
@@ -98,6 +99,7 @@ class CustomTitleBar(QWidget):
     maximize_clicked = Signal()
     close_clicked = Signal()
     navigation_changed = Signal(int)
+    theme_changed = Signal(str)  # Emitted when theme is changed
 
     def __init__(self, title: str = "SecureVision", parent=None):
         """Initialize the custom title bar.
@@ -170,20 +172,28 @@ class CustomTitleBar(QWidget):
         nav_layout.addWidget(self.nav_tabs)
         nav_layout.addStretch()
 
-        # Right spacer matches left width to keep tabs centered
-        right_spacer = QWidget()
-        right_spacer.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Preferred)
-        right_spacer.setFixedWidth(left_container.sizeHint().width())
+        # Right container with theme switcher
+        right_container = QWidget()
+        right_layout = QHBoxLayout(right_container)
+        right_layout.setContentsMargins(0, 0, 0, 0)
+        right_layout.setSpacing(tokens.SPACING_TIGHT)
+
+        # Theme switcher
+        self.theme_switcher = ThemeSwitcher()
+        right_layout.addWidget(self.theme_switcher)
 
         # Connect button signals
         self.minimize_button.clicked.connect(self.minimize_clicked)
         self.maximize_button.clicked.connect(self.maximize_clicked)
         self.close_button.clicked.connect(self.close_clicked)
 
+        # Connect theme switcher
+        self.theme_switcher.theme_changed.connect(self.theme_changed.emit)
+
         # Add widgets to layout
         layout.addWidget(left_container)
         layout.addWidget(nav_container, 1)
-        layout.addWidget(right_spacer)
+        layout.addWidget(right_container)
 
     def _create_title_button(self, role: str) -> QPushButton:
         """Create a window control button (macOS style).
@@ -234,6 +244,22 @@ class CustomTitleBar(QWidget):
         self.maximize_button.setProperty("titleBarMaximized", maximized)
         self.maximize_button.style().unpolish(self.maximize_button)
         self.maximize_button.style().polish(self.maximize_button)
+
+    def set_theme(self, theme: str):
+        """Set the current theme in the switcher.
+
+        Args:
+            theme: Theme identifier ("light", "system", "dark")
+        """
+        self.theme_switcher.set_theme(theme)
+
+    def get_theme(self) -> str:
+        """Get the current theme from the switcher.
+
+        Returns:
+            Current theme identifier
+        """
+        return self.theme_switcher.get_theme()
 
     # ========================================================================
     # Window Dragging Support

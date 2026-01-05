@@ -1,13 +1,18 @@
 """Video source selection widget with type-specific configuration."""
 
 import logging
+from pathlib import Path
 from typing import Optional
 
-from PySide6.QtCore import Signal
+from PySide6.QtCore import Qt, Signal
+from PySide6.QtGui import QDragEnterEvent, QDropEvent
 from PySide6.QtWidgets import (
     QButtonGroup,
+    QFileDialog,
+    QHBoxLayout,
     QLabel,
     QLineEdit,
+    QPushButton,
     QRadioButton,
     QSpinBox,
     QStackedWidget,
@@ -70,7 +75,7 @@ class SourcePicker(QWidget):
 
         # Source type selector (radio buttons)
         type_layout = QVBoxLayout()
-        type_layout.setSpacing(tokens.SPACING_TIGHT)
+        type_layout.setSpacing(tokens.SPACING_NORMAL)
 
         self.button_group = QButtonGroup(self)
 
@@ -199,28 +204,124 @@ class SourcePicker(QWidget):
         return widget
 
     def _create_file_config(self) -> QWidget:
-        """Create file configuration widget."""
+        """Create file configuration widget with drag & drop support."""
         widget = QWidget()
         layout = QVBoxLayout(widget)
         layout.setContentsMargins(0, 0, 0, 0)
         layout.setSpacing(tokens.SPACING_TIGHT)
 
-        # File path
-        path_label = QLabel("File Path:")
-        path_label.setStyleSheet(
-            f"color: {tokens.TEXT_SECONDARY}; " f"font-size: {tokens.FONT_SIZE_SMALL}px;"
+        # Drag & drop area
+        drop_area_label = QLabel("Drop Video File Here")
+        drop_area_label.setObjectName("fileDropArea")
+        drop_area_label.setAlignment(Qt.AlignCenter)
+        drop_area_label.setMinimumHeight(80)
+        drop_area_label.setStyleSheet(
+            f"""
+            QLabel#fileDropArea {{
+                background-color: {tokens.BACKGROUND_SUBTLE};
+                border: 2px dashed {tokens.BORDER_UNFOCUSED};
+                color: {tokens.TEXT_SECONDARY};
+                font-size: {tokens.FONT_SIZE_NORMAL}px;
+                padding: {tokens.PADDING_LARGE}px;
+            }}
+            QLabel#fileDropArea:hover {{
+                background-color: {tokens.BACKGROUND_HOVER};
+                border-color: {tokens.ACCENT_PRIMARY};
+            }}
+            """
         )
-        layout.addWidget(path_label)
+        self.drop_area = drop_area_label
+        self.drop_area.setAcceptDrops(True)
+        self.drop_area.dragEnterEvent = self._on_drag_enter
+        self.drop_area.dropEvent = self._on_drop
+        layout.addWidget(self.drop_area)
 
-        self.file_path_input = QLineEdit()
-        self.file_path_input.setPlaceholderText("/path/to/video.mp4")
-        self.file_path_input.setMinimumHeight(32)
-        self.file_path_input.textChanged.connect(self._on_file_config_changed)
-        layout.addWidget(self.file_path_input)
+        # "Or" label
+        or_label = QLabel("— or —")
+        or_label.setAlignment(Qt.AlignCenter)
+        or_label.setStyleSheet(
+            f"color: {tokens.TEXT_TERTIARY}; font-size: {tokens.FONT_SIZE_SMALL}px;"
+        )
+        layout.addWidget(or_label)
+
+        # Browse button
+        button_container = QWidget()
+        button_layout = QHBoxLayout(button_container)
+        button_layout.setContentsMargins(0, 0, 0, 0)
+        button_layout.setSpacing(tokens.SPACING_NORMAL)
+
+        self.browse_button = QPushButton("Select Video File")
+        self.browse_button.setMinimumHeight(32)
+        self.browse_button.clicked.connect(self._on_browse_file)
+        button_layout.addWidget(self.browse_button)
+
+        layout.addWidget(button_container)
+
+        # Selected file display
+        self.file_path_display = QLabel("No file selected")
+        self.file_path_display.setStyleSheet(
+            f"""
+            color: {tokens.TEXT_SECONDARY};
+            font-size: {tokens.FONT_SIZE_SMALL}px;
+            font-style: italic;
+            """
+        )
+        self.file_path_display.setWordWrap(True)
+        layout.addWidget(self.file_path_display)
 
         layout.addStretch()
 
         return widget
+
+    def _on_drag_enter(self, event: QDragEnterEvent):
+        """Handle drag enter event.
+
+        Args:
+            event: Drag enter event
+        """
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if urls and urls[0].isLocalFile():
+                file_path = Path(urls[0].toLocalFile())
+                # Accept common video formats
+                if file_path.suffix.lower() in (".mp4", ".avi", ".mov", ".mkv", ".webm", ".flv"):
+                    event.acceptProposedAction()
+
+    def _on_drop(self, event: QDropEvent):
+        """Handle drop event.
+
+        Args:
+            event: Drop event
+        """
+        if event.mimeData().hasUrls():
+            urls = event.mimeData().urls()
+            if urls and urls[0].isLocalFile():
+                file_path = str(urls[0].toLocalFile())
+                self._set_file_path(file_path)
+                event.acceptProposedAction()
+
+    def _on_browse_file(self):
+        """Handle browse button click."""
+        file_path, _ = QFileDialog.getOpenFileName(
+            self,
+            "Select Video File",
+            "",
+            "Video Files (*.mp4 *.avi *.mov *.mkv *.webm *.flv);;All Files (*)",
+        )
+        if file_path:
+            self._set_file_path(file_path)
+
+    def _set_file_path(self, file_path: str):
+        """Set the file path and update UI.
+
+        Args:
+            file_path: Path to video file
+        """
+        self._file_path = file_path
+        path = Path(file_path)
+        self.file_path_display.setText(f"Selected: {path.name}")
+        self.file_path_display.setToolTip(file_path)
+        self._on_file_config_changed()
 
     def _create_rtmp_config(self) -> QWidget:
         """Create RTMP configuration widget."""

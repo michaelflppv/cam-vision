@@ -60,6 +60,9 @@ class AppState(QObject):
     api_url_changed = Signal(str)
     api_auth_token_changed = Signal(str)
 
+    # Theme
+    theme_changed = Signal(str)  # "light" | "dark" | "system"
+
     def __init__(self):
         """Initialize the application state."""
         super().__init__()
@@ -117,6 +120,9 @@ class AppState(QObject):
         # API client
         self._api_url = "http://localhost:8000"
         self._api_auth_token = ""
+
+        # Theme
+        self._theme = "system"
 
         # Detection results (latest)
         self._latest_frame = None
@@ -334,6 +340,28 @@ class AppState(QObject):
         return self._api_auth_token
 
     # ========================================================================
+    # Theme
+    # ========================================================================
+
+    def set_theme(self, theme: str):
+        """Set the UI theme.
+
+        Args:
+            theme: "light", "dark", or "system"
+        """
+        theme = theme.lower()
+        if theme not in ("light", "dark", "system"):
+            theme = "system"
+
+        if theme != self._theme:
+            self._theme = theme
+            self.theme_changed.emit(theme)
+
+    def get_theme(self) -> str:
+        """Get the current theme."""
+        return self._theme
+
+    # ========================================================================
     # Detection Results
     # ========================================================================
 
@@ -388,6 +416,9 @@ class AppState(QObject):
         self._mode = settings.value("mode", "Standalone")
         self._api_url = settings.value("api_url", "http://localhost:8000")
 
+        # Theme
+        self._theme = settings.value("ui/theme", "system")
+
         # Source
         self._source_type = settings.value("source/type", "device")
 
@@ -409,6 +440,9 @@ class AppState(QObject):
         # Mode and connection
         settings.setValue("mode", self._mode)
         settings.setValue("api_url", self._api_url)
+
+        # Theme
+        settings.setValue("ui/theme", self._theme)
 
         # Source
         settings.setValue("source/type", self._source_type)
