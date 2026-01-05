@@ -37,8 +37,14 @@ jobs:
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
+          set +e
           sudo NEEDRESTART_MODE=a NEEDRESTART_SUSPEND=1 DEBIAN_FRONTEND=noninteractive \
             apt-get install -y tesseract-ocr
+          APT_EXIT=$?
+          set -e
+          if ! dpkg -s tesseract-ocr >/dev/null 2>&1; then
+            exit $APT_EXIT
+          fi
           mkdir -p build/tesseract/bin build/tesseract/lib build/tesseract/share
           TESSERACT_BIN="$(which tesseract)"
           cp "$TESSERACT_BIN" build/tesseract/bin/
@@ -90,11 +96,18 @@ jobs:
           SECUREVISION_INSIGHTFACE_DIR: ${{ env.SECUREVISION_INSIGHTFACE_DIR }}
         run: python -m poetry run pyinstaller packaging/securevision_desktop.spec --noconfirm --clean
 
-      - name: Package artifact (Linux/macOS)
-        if: runner.os != 'Windows'
+      - name: Package artifact (Linux)
+        if: runner.os == 'Linux'
         run: |
           cd dist
           zip -r "SecureVision-${{ runner.os }}.zip" "SecureVision"
+          mv "SecureVision-${{ runner.os }}.zip" ..
+
+      - name: Package artifact (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          cd dist
+          zip -r "SecureVision-${{ runner.os }}.zip" "SecureVision.app"
           mv "SecureVision-${{ runner.os }}.zip" ..
 
       - name: Package artifact (Windows)
