@@ -4,6 +4,12 @@ SecureVision is a self-hosted computer vision platform for live camera feeds wit
 cross-platform desktop dashboard. It detects faces and license plates, tracks events,
 and exposes a local API for integrations.
 
+[![Python 3.10+](https://img.shields.io/badge/python-3.10%2B-2b5b84)](https://www.python.org/)
+[![Poetry](https://img.shields.io/badge/poetry-managed-60a5fa)](https://python-poetry.org/)
+[![FastAPI](https://img.shields.io/badge/api-fastapi-009688)](https://fastapi.tiangolo.com/)
+[![PySide6](https://img.shields.io/badge/ui-pyside6-4a90e2)](https://doc.qt.io/qtforpython/)
+[![License: MIT](https://img.shields.io/badge/license-MIT-0b7285)](LICENSE)
+
 ## Highlights
 
 - Live camera ingestion with a desktop UI for preview and monitoring
