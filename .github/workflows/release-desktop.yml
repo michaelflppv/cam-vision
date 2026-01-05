@@ -28,16 +28,16 @@ jobs:
       - name: Install Poetry
         run: |
           python -m pip install --upgrade pip
-          pip install poetry==1.8.3
+          python -m pip install poetry==1.8.3
 
       - name: Install dependencies
-        run: poetry install --with dev
+        run: python -m poetry install --with dev
 
       - name: Prepare tesseract (Linux)
         if: runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y tesseract-ocr
+          sudo NEEDRESTART_MODE=a apt-get install -y tesseract-ocr
           mkdir -p build/tesseract/bin build/tesseract/lib build/tesseract/share
           TESSERACT_BIN="$(which tesseract)"
           cp "$TESSERACT_BIN" build/tesseract/bin/
@@ -71,13 +71,13 @@ jobs:
           mkdir -p build/insightface
           echo "SECUREVISION_INSIGHTFACE_DIR=${GITHUB_WORKSPACE}/build/insightface" >> "$GITHUB_ENV"
           SECUREVISION_INSIGHTFACE_DIR="${GITHUB_WORKSPACE}/build/insightface" \
-            poetry run python scripts/prepare_insightface_models.py
+            python -m poetry run python scripts/prepare_insightface_models.py
 
       - name: Build app
         env:
           SECUREVISION_TESSERACT_DIR: ${{ env.SECUREVISION_TESSERACT_DIR }}
           SECUREVISION_INSIGHTFACE_DIR: ${{ env.SECUREVISION_INSIGHTFACE_DIR }}
-        run: poetry run pyinstaller packaging/securevision_desktop.spec --noconfirm --clean
+        run: python -m poetry run pyinstaller packaging/securevision_desktop.spec --noconfirm --clean
 
       - name: Package artifact (Linux/macOS)
         if: runner.os != 'Windows'
