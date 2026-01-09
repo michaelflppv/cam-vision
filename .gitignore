@@ -195,9 +195,53 @@ cython_debug/
 # PyPI configuration file
 .pypirc
 
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
 # Cursor
 #  Cursor is an AI-powered code editor. `.cursorignore` specifies files/directories to
 #  exclude from AI features like autocomplete and code analysis. Recommended for sensitive data
+
+# SecureVision Flutter mobile/desktop build artifacts
+securevision_flutter/.dart_tool/
+securevision_flutter/.flutter-plugins
+securevision_flutter/.flutter-plugins-dependencies
+securevision_flutter/.pub-cache/
+securevision_flutter/.pub/
+securevision_flutter/build/
+securevision_flutter/coverage/
+securevision_flutter/android/.gradle/
+securevision_flutter/android/app/debug/
+securevision_flutter/android/app/profile/
+securevision_flutter/android/app/release/
+securevision_flutter/android/captures/
+securevision_flutter/android/local.properties
+securevision_flutter/android/key.properties
+securevision_flutter/android/**/*.jks
+securevision_flutter/android/**/*.keystore
+securevision_flutter/ios/Pods/
+securevision_flutter/ios/Flutter/ephemeral/
+securevision_flutter/ios/Flutter/Flutter.framework
+securevision_flutter/ios/Flutter/App.framework
+securevision_flutter/ios/Flutter/Generated.xcconfig
+securevision_flutter/ios/Flutter/flutter_export_environment.sh
+securevision_flutter/ios/Runner/GeneratedPluginRegistrant.*
+securevision_flutter/ios/Runner/Python.xcframework/
+securevision_flutter/ios/Runner/python-stdlib/
+securevision_flutter/ios/Runner/python/
+securevision_flutter/macos/Flutter/ephemeral/
+securevision_flutter/macos/Pods/
+securevision_flutter/macos/Runner.xcworkspace/
+securevision_flutter/windows/flutter/ephemeral/
+securevision_flutter/windows/**/x64/
+securevision_flutter/windows/**/x86/
+securevision_flutter/linux/flutter/ephemeral/
+securevision_flutter/linux/**/CMakeFiles/
+securevision_flutter/linux/**/cmake_install.cmake
+securevision_flutter/linux/**/Makefile
+
 #  refer to https://docs.cursor.com/context/ignore-files
 .cursorignore
 .cursorindexingignore
