@@ -1,0 +1,26 @@
+# Android Python Requirements (Chaquopy)
+#
+# IMPORTANT: Full SecureVision functionality is NOT available on Android.
+# Many CV/ML libraries don't have Android builds or are too large for mobile.
+#
+# LIMITATIONS:
+# - No opencv-python (use Android Camera API instead)
+# - No insightface/onnxruntime (no Android builds)
+# - No ultralytics/pytorch (too large, no Android support)
+# - No pytesseract (requires system binary)
+#
+# For full computer vision features, use:
+# - Desktop version (macOS/Windows/Linux)
+# - Or connect to a remote SecureVision API server
+#
+# The Android app currently supports:
+# - Configuration management
+# - Event viewing and history
+# - Face enrollment (uploads to server/desktop)
+# - Plate list management
+#
+# Minimal runtime dependencies for config and basic functionality:
+# Versions chosen for Chaquopy/Android compatibility
+pydantic==2.8.2
+pydantic-settings==2.6.0
+numpy==1.24.4  # For basic array operations if needed
